@@ -1,0 +1,15 @@
+{
+  "name": "studyflip",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev -w server",
+    "dev:client": "npm run dev -w client",
+    "test": "npm run test -w server",
+    "build": "npm run build -w client"
+  }
+}

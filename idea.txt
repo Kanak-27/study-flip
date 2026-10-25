@@ -1,0 +1,455 @@
+# StudyFlip: Project Overview & Development Outline
+
+## 1. Project Overview
+
+**StudyFlip is an AI-powered learning platform that converts academic documents into interactive flashcards and helps students retain information through active recall and spaced repetition.**
+
+Students often spend considerable time reading lengthy PDFs, identifying important concepts, and manually preparing study materials. StudyFlip aims to automate this preparation process so that students can spend more time learning and less time organizing information.
+
+Users upload their academic documents, generate flashcards automatically, review and edit the generated content, and study using an interactive flashcard interface. The platform tracks their performance and schedules future reviews based on their recall ability.
+
+The long-term vision is to develop StudyFlip into a subscription-based educational platform that offers personalized learning experiences.
+
+## 2. Problem Statement
+
+Students face several challenges while preparing for examinations:
+
+- **Time-consuming preparation:** Creating flashcards manually from lengthy academic documents takes time.
+- **Ineffective revision:** Repeatedly reading notes does not necessarily help students identify what they have forgotten.
+- **Poor retention:** Students often revise information without following a consistent revision schedule.
+- **Lack of personalization:** Traditional study materials do not adapt to an individual's learning progress.
+- **Disorganized resources:** Students may struggle to manage study materials across different subjects and topics.
+
+StudyFlip addresses these problems by automating flashcard creation and providing a structured, personalized revision process.
+
+## 3. Project Objectives
+
+The primary objectives of StudyFlip are:
+
+1. Automate the conversion of academic PDFs into flashcards.
+2. Reduce the time required to prepare study materials.
+3. Encourage active recall instead of passive rereading.
+4. Implement spaced repetition to support long-term memory retention.
+5. Track individual flashcard performance and study progress.
+6. Provide a centralized platform for organizing subjects, decks, and cards.
+7. Develop a scalable subscription-based product with free and premium features.
+
+## 4. Core Features and Modules
+
+### Module 1: User Authentication and Profile Management
+
+This module manages user accounts and access to the platform.
+
+**Features:**
+- User registration and login.
+- Secure session management.
+- User profile management.
+- Personalized dashboard.
+- Private user data and study materials.
+
+### Module 2: Document Upload and Processing
+
+This module accepts academic documents and extracts their content.
+
+**Features:**
+- Upload PDF documents.
+- Validate document format and size.
+- Extract text from uploaded documents.
+- Detect empty or unreadable documents.
+- Track document-processing status.
+- Handle extraction failures gracefully.
+
+**Expected output:** Clean text that can be processed to generate flashcards.
+
+### Module 3: AI-Powered Flashcard Generation
+
+This is one of the primary features that differentiates StudyFlip from conventional flashcard applications.
+
+**Features:**
+- Generate questions and answers from extracted document text.
+- Identify important concepts, definitions, and explanations.
+- Organize generated cards into logical collections.
+- Validate generated content.
+- Allow users to review, edit, and delete generated cards.
+- Regenerate cards when necessary.
+
+**Expected output:** A collection of editable flashcards derived from the uploaded material.
+
+### Module 4: Deck and Flashcard Management
+
+This module allows users to organize and manage their learning materials.
+
+**Features:**
+- Create decks manually or from uploaded documents.
+- Rename and delete decks.
+- Add new flashcards.
+- Edit questions and answers.
+- Delete unwanted cards.
+- Organize decks by subject or topic.
+- View the number of cards in each deck.
+
+**Expected output:** A structured, persistent collection of study materials.
+
+### Module 5: Interactive Flashcard Study Interface
+
+This module provides the primary learning experience.
+
+**Features:**
+- Display one question at a time.
+- Hide answers until the user reveals them.
+- Implement a smooth 3D card-flipping animation.
+- Allow users to evaluate their recall performance.
+- Navigate between cards.
+- Display study-session progress.
+- Provide options to restart or end a session.
+
+The interface should encourage users to attempt answering questions before revealing the answers.
+
+### Module 6: Spaced Repetition Engine
+
+This module schedules flashcards for future revision based on the user's previous performance.
+
+**Features:**
+- Track recall performance for individual cards.
+- Maintain each card's review history.
+- Calculate the next review interval.
+- Assign future review dates.
+- Retrieve cards that are due for revision.
+- Reschedule cards after subsequent reviews.
+
+The initial implementation will use the SuperMemo-2 (SM-2) algorithm.
+
+**Expected output:** A personalized revision schedule that changes according to the user's recall performance.
+
+### Module 7: Dashboard and Study Analytics
+
+This module provides an overview of the user's learning progress.
+
+**Features:**
+- Display total decks and flashcards.
+- Show cards due for revision.
+- Track completed reviews.
+- Display study-session history.
+- Calculate recall accuracy.
+- Show learning activity over time.
+- Display study streaks.
+
+The dashboard should prioritize actionable information, particularly the cards that need revision today.
+
+### Module 8: Subscription and Usage Management
+
+This module introduces the commercial aspects of StudyFlip.
+
+**Features:**
+- Define free and premium subscription plans.
+- Apply monthly document-upload limits.
+- Enforce usage restrictions.
+- Track usage against subscription allowances.
+- Process subscription payments.
+- Handle subscription renewals and cancellations.
+- Update user entitlements according to verified payment events.
+
+This module should be implemented after the core learning experience works reliably.
+
+---
+
+## 5. User Workflow
+
+The main user journey will follow this sequence:
+
+**Step 1: Register or log in**
+
+The user accesses their personalized StudyFlip account.
+
+**Step 2: Upload a document**
+
+The user uploads a PDF containing academic material.
+
+**Step 3: Process the document**
+
+The application extracts the text and prepares it for flashcard generation.
+
+**Step 4: Generate flashcards**
+
+The AI generates questions and answers based on the document's contents.
+
+**Step 5: Review generated cards**
+
+The user checks the generated content, corrects mistakes, and removes unnecessary cards.
+
+**Step 6: Save the deck**
+
+The user saves the flashcards in an organized deck.
+
+**Step 7: Start studying**
+
+The application presents questions individually. The user attempts to recall each answer before revealing it.
+
+**Step 8: Evaluate recall**
+
+The user indicates how successfully they recalled the answer.
+
+**Step 9: Schedule the next review**
+
+The spaced repetition engine calculates when the card should appear again.
+
+**Step 10: Continue daily revision**
+
+The dashboard presents cards due for revision, allowing the user to maintain a consistent learning routine.
+
+---
+
+## 6. High-Level System Architecture
+
+StudyFlip can be divided into five logical layers.
+
+| Layer | Responsibility |
+|---|---|
+| Presentation Layer | User interface, dashboard, document uploads, flashcards, and study sessions |
+| Authentication and Access Layer | User identity, session verification, ownership checks, and feature permissions |
+| Application Logic Layer | Document processing, flashcard generation, deck management, review scheduling, and subscription rules |
+| Data Layer | Persistent storage of users, documents, decks, cards, review records, and usage information |
+| External Services Layer | AI-powered content generation, document-processing support where necessary, and payment processing |
+
+### Main data flow
+
+```text
+                 USER
+                  |
+                  v
+        +--------------------+
+        |   StudyFlip UI     |
+        +--------------------+
+                  |
+                  v
+        +--------------------+
+        | Authentication &   |
+        | Access Validation  |
+        +--------------------+
+                  |
+                  v
+        +--------------------+
+        | Application Logic  |
+        +--------------------+
+             /          \
+            v            v
+  +----------------+  +----------------+
+  | Document and   |  | Study and      |
+  | AI Processing  |  | Review Engine  |
+  +----------------+  +----------------+
+            |            |
+            +-----+------+
+                  |
+                  v
+        +--------------------+
+        | Persistent Data    |
+        | Storage            |
+        +--------------------+
+                  |
+                  v
+        +--------------------+
+        | Dashboard and      |
+        | Study Experience   |
+        +--------------------+
+```
+
+The architecture is intentionally modular. Each module has a distinct responsibility, but the modules work together as one application.
+
+---
+
+## 7. Database Design Overview
+
+StudyFlip will need several related entities to manage user data and learning activity.
+
+| Entity | Purpose |
+|---|---|
+| Users | Stores application user information and identity references |
+| Documents | Records uploaded documents and processing status |
+| Decks | Stores collections of flashcards |
+| Flashcards | Stores individual questions, answers, and scheduling state |
+| Review Logs | Records review attempts, ratings, and scheduling changes |
+| Subscriptions | Stores subscription status and billing references |
+| Usage Events | Tracks document processing and other quota-controlled actions |
+
+### Important relationships
+
+- A user can own multiple documents.
+- A user can create multiple decks.
+- A document can be associated with one or more decks.
+- A deck contains multiple flashcards.
+- A flashcard can have multiple review records.
+- A user can have a subscription and multiple usage events.
+
+The database must preserve the relationship between users and their data so that one user cannot access another user's private documents, decks, or review history.
+
+---
+
+# 8. Development Roadmap
+
+The project should be developed incrementally. Each phase should produce something functional before the next phase begins.
+
+## Phase 1: Project Foundation
+
+**Goal:** Establish the basic application structure.
+
+Tasks:
+- Initialize the project repository.
+- Define the initial application structure.
+- Create the database schema.
+- Configure the connection between the application and database.
+- Implement authentication.
+- Create a basic dashboard.
+- Verify that users can access their own data.
+
+**Milestone:** A user can register, log in, and access a personalized dashboard.
+
+## Phase 2: Deck and Flashcard Management
+
+**Goal:** Build the basic learning application without AI.
+
+Tasks:
+- Create and manage decks.
+- Add flashcards manually.
+- Edit and delete flashcards.
+- Display saved decks.
+- Implement the basic flashcard study interface.
+- Add the 3D flipping animation.
+
+**Milestone:** A user can create a deck manually and study its cards.
+
+This phase is important because it establishes the core learning experience independently of the AI system.
+
+## Phase 3: PDF Upload and Text Extraction
+
+**Goal:** Convert uploaded documents into usable text.
+
+Tasks:
+- Implement PDF uploads.
+- Validate uploaded files.
+- Extract document text.
+- Handle unreadable or empty documents.
+- Track processing status.
+- Connect documents with the relevant user account.
+
+**Milestone:** A user can upload a PDF and retrieve its extracted text.
+
+## Phase 4: AI Flashcard Generation
+
+**Goal:** Automate the creation of study materials.
+
+Tasks:
+- Define the flashcard output structure.
+- Design prompts for question-and-answer generation.
+- Integrate the AI service.
+- Validate generated responses.
+- Handle large documents through chunking.
+- Handle API errors and failed generations.
+- Allow users to review and edit generated cards.
+- Save the approved cards into decks.
+
+**Milestone:** A user can upload a PDF and create an editable flashcard deck from its contents.
+
+## Phase 5: Spaced Repetition
+
+**Goal:** Introduce personalized revision scheduling.
+
+Tasks:
+- Implement the SM-2 algorithm.
+- Store scheduling information for each card.
+- Record review attempts.
+- Calculate future review dates.
+- Retrieve cards due for review.
+- Update scheduling state after each review.
+- Test scheduling calculations independently.
+
+**Milestone:** Flashcards automatically reappear according to the user's review history.
+
+## Phase 6: Dashboard and Analytics
+
+**Goal:** Help users understand and manage their learning progress.
+
+Tasks:
+- Display deck and flashcard counts.
+- Show the daily review queue.
+- Track completed reviews.
+- Calculate recall accuracy.
+- Display review history.
+- Add study streaks and activity summaries.
+
+**Milestone:** Users can see their study progress and identify what needs revision.
+
+## Phase 7: Subscription Management
+
+**Goal:** Introduce the SaaS business model.
+
+Tasks:
+- Define free and premium plans.
+- Establish usage quotas.
+- Implement server-side quota enforcement.
+- Integrate a payment provider.
+- Handle verified payment webhooks.
+- Manage subscription renewals and cancellations.
+- Test unauthorized access to premium features.
+
+**Milestone:** Users can subscribe to premium features, and access restrictions are enforced correctly.
+
+## Phase 8: Testing and Deployment
+
+**Goal:** Prepare the application for real users.
+
+Tasks:
+- Test authentication and authorization.
+- Test document-processing failures.
+- Test malformed AI responses.
+- Test flashcard creation and editing.
+- Test spaced repetition calculations.
+- Test usage limits and payment events.
+- Improve error handling and loading states.
+- Deploy the application.
+- Configure production secrets and environment variables.
+- Add basic monitoring and error logging.
+
+**Milestone:** StudyFlip is deployed and usable outside the development environment.
+
+---
+
+## 9. Minimum Viable Product (MVP)
+
+The first version should focus exclusively on proving the central idea.
+
+### Features to include
+
+- User registration and login.
+- PDF upload.
+- Text extraction.
+- AI-powered flashcard generation.
+- Editable flashcard decks.
+- Interactive flashcard study sessions.
+- Basic SM-2 spaced repetition.
+- Daily review queue.
+
+### Features to postpone
+
+- Subscription payments.
+- OCR for scanned documents.
+- Advanced learning analytics.
+- Collaborative decks.
+- Social features and leaderboards.
+- Complex personalization.
+- Multiple AI generation strategies.
+
+**The MVP is successful when a user can upload a PDF, generate a deck, study its flashcards, and return later to review cards that are due.**
+
+That single workflow demonstrates the actual value of StudyFlip.
+
+## 10. Expected Final Outcome
+
+At completion, StudyFlip should provide:
+
+1. An automated pipeline for transforming academic documents into flashcards.
+2. A persistent system for organizing and managing study materials.
+3. An interactive active-recall experience.
+4. A spaced repetition engine that schedules future reviews.
+5. A dashboard for monitoring learning activity.
+6. A foundation for subscription-based monetization.
+

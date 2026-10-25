@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+/* Design system: one deep botanical green accent on a warm off-white canvas.
+   Green reads as calm, focus, and steady progress — the study mood. */
+@theme {
+  --color-forest-50: #f2f7f2;
+  --color-forest-100: #e1ece2;
+  --color-forest-200: #c4d9c7;
+  --color-forest-300: #9dbfa3;
+  --color-forest-400: #6f9c79;
+  --color-forest-500: #4d7f5c;
+  --color-forest-600: #366445;
+  --color-forest-700: #275036;
+  --color-forest-800: #1b3d28;
+  --color-forest-900: #122a1b;
+  --color-canvas: #fafaf7;
+
+  /* Study session motion: the card leaves the deck (left), flips around its
+     vertical axis, and lands in the answer slot (right). */
+  --animate-open-in: open-in 420ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  --animate-flip-out: flip-out 440ms cubic-bezier(0.5, 0, 0.85, 0.4) forwards;
+  --animate-flip-in: flip-in 560ms cubic-bezier(0.15, 0.85, 0.25, 1) 80ms both;
+  --animate-pop-in: pop-in 280ms ease-out both;
+
+  @keyframes open-in {
+    from { transform: translate(-0.75rem, 0.5rem) rotate(-6deg) scale(0.96); opacity: 0; }
+    to { transform: translateX(0.375rem) rotate(3.5deg) scale(1); opacity: 1; }
+  }
+  @keyframes flip-out {
+    from { transform: translateX(0.375rem) rotate(3.5deg); opacity: 1; }
+    to { transform: translateX(5rem) rotateY(-105deg); opacity: 0; }
+  }
+  @keyframes flip-in {
+    from { transform: translateX(-5rem) rotateY(105deg); opacity: 0; }
+    to { transform: translateX(0) rotateY(0deg); opacity: 1; }
+  }
+  @keyframes pop-in {
+    from { transform: scale(0.94); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+}
+
+/* Shared primitives so every page uses identical buttons. */
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-full bg-forest-800 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-forest-700 disabled:opacity-60;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition-colors hover:border-forest-300 hover:text-forest-800 disabled:opacity-60;
+  }
+  .input {
+    @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-forest-600 focus:outline-none focus:ring-1 focus:ring-forest-600;
+  }
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white;
+  }
+}
+
+/* Flip-card depth lives in Tailwind arbitrary properties ([perspective],
+   [transform-style:preserve-3d], [backface-visibility]) on the elements
+   themselves — no custom CSS needed here. */
+
+/* Honor reduced-motion: keep the states, drop the travel. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-open-in,
+  .animate-flip-out,
+  .animate-flip-in,
+  .animate-pop-in {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
+}
