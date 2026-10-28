@@ -90,5 +90,22 @@ jobs:
               git reset --hard origin/main
               npm ci --omit=dev
               pm2 restart '$PM2_APP' --update-env
-              curl --fail --silent --retry 10 --retry-delay 3 --retry-connrefused '$HEALTH_URL' > /dev/null
+
+              echo 'Checking $HEALTH_URL'
+              for i in \$(seq 1 30); do
+                code=\$(curl --silent --output /tmp/studyflip-health --write-out '%{http_code}' --connect-timeout 3 --max-time 5 '$HEALTH_URL' || true)
+                if [ \"\$code\" = '200' ] && grep -q 'ok:true' /tmp/studyflip-health; then
+                  echo 'Health check passed.'
+                  exit 0
+                fi
+                echo \"Health check attempt \$i returned HTTP \$code; retrying...\"
+                sleep 2
+              done
+
+              echo 'Health check failed.' >&2
+              cat /tmp/studyflip-health >&2 || true
+              pm2 status || true
+              pm2 describe '$PM2_APP' || true
+              pm2 logs '$PM2_APP' --lines 100 --nostream || true
+              exit 1
             "
