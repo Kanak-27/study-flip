@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Router, raw } from 'express';
+import { Router, raw, urlencoded } from 'express';
 import { getPlans, getPlan } from './plans.js';
 import {
   getEntitlements,
@@ -25,12 +25,31 @@ import { User } from '../auth/user.model.js';
 
 export const billingRouter = Router();
 
-// Mounted BEFORE express.json(): Cashfree signs the raw request body, so this
-// route must see the untouched bytes. Mounting it after the JSON parser would
-// hand the handler a parsed object and every signature check would fail.
-export const cashfreeWebhookRouter = Router();
+// Public billing routes: Cashfree calls these server-to-server or as a browser
+// redirect, so they sit outside the session/auth stack. Mounted BEFORE
+// express.json() because the webhook signature covers the untouched bytes.
+export const billingPublicRouter = Router();
 
-cashfreeWebhookRouter.post(
+// Cashfree POSTs (form-encoded) to return_url with cf_* parameters once the
+// mandate is authorised. Sending that POST straight at the SPA is what produced
+// "405 Not Allowed": nginx serves the app as static files and refuses non-GET
+// methods, so the fallback to index.html never happens.
+//
+// We deliberately do not trust this payload — the SPA only needs to know it
+// came back, and entitlements are granted from signed webhooks. Answering with
+// a 303 turns the POST into a clean GET so a refresh doesn't resubmit it.
+function billingReturn(_req, res) {
+  res.redirect(303, `${config.CLIENT_ORIGIN}/plans?upgraded=1`);
+}
+
+billingPublicRouter.get('/billing/return', billingReturn);
+billingPublicRouter.post(
+  '/billing/return',
+  urlencoded({ extended: false, limit: '32kb' }), // drain the form body
+  billingReturn,
+);
+
+billingPublicRouter.post(
   '/billing/webhook',
   raw({ type: 'application/json', limit: '1mb' }),
   wrap(async (req, res) => {
@@ -134,7 +153,9 @@ billingRouter.post(
         payment_methods: ['upi', 'card'],
       },
       subscription_meta: {
-        return_url: `${config.CLIENT_ORIGIN}/plans?upgraded=1`,
+        // Cashfree POSTs back here, so this must hit the API (which 303s to the
+        // SPA) rather than the static site. See billingReturn above.
+        return_url: config.BILLING_RETURN_URL ?? `${config.CLIENT_ORIGIN}/api/billing/return`,
         notification_channel: ['EMAIL', 'SMS'],
         session_id_expiry: isoIn(30 * 60 * 1000),
       },

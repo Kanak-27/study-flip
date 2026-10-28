@@ -42,6 +42,12 @@ const schema = z.object({
   // Cashfree signs webhooks with your client secret; override only if you
   // deliberately rotate the signing secret separately.
   CASHFREE_WEBHOOK_SECRET: z.string().optional(),
+  // Where Cashfree sends the browser back after the mandate is authorised.
+  // Must be served by the API (it 303s to the SPA) because Cashfree POSTs to
+  // it and a static nginx SPA host answers POST with 405. Defaults to
+  // CLIENT_ORIGIN/api/billing/return, which assumes nginx proxies /api there;
+  // set this to the API's public URL if the site and API are separate hosts.
+  BILLING_RETURN_URL: z.string().url().optional(),
 });
 
 const result = schema.safeParse(process.env);

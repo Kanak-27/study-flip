@@ -71,6 +71,22 @@ function mockCashfree(body, status = 200) {
 }
 
 describe('billing (Cashfree)', () => {
+  it('turns Cashfree\'s POST to return_url into a 303 to the app', async () => {
+    // Cashfree posts form data to return_url. Pointing that at the static SPA
+    // host is what produced nginx "405 Not Allowed"; the API must absorb the
+    // POST and redirect with GET instead.
+    const post = await ctx.request
+      .post('/api/billing/return')
+      .type('form')
+      .send({ cf_status: 'ACTIVE', cf_subscriptionId: 'sub_test' });
+
+    expect(post.status).toBe(303);
+    expect(post.headers.location).toBe('http://localhost:5173/plans?upgraded=1');
+
+    const get = await ctx.request.get('/api/billing/return');
+    expect(get.status).toBe(303);
+  });
+
   it('starts a checkout and returns the subscription session id', async () => {
     const { agent } = await registerAgent(ctx, 10);
     const fetchMock = mockCashfree({
@@ -98,6 +114,8 @@ describe('billing (Cashfree)', () => {
     });
     expect(sent.authorization_details.authorization_amount).toBe(699);
     expect(sent.subscription_id).toMatch(/^sf-[a-f0-9]{24}-/);
+    // Must not point at the static SPA: Cashfree POSTs to it and nginx 405s.
+    expect(sent.subscription_meta.return_url).toBe('http://localhost:5173/api/billing/return');
   });
 
   it('asks for a mobile number when the account has none', async () => {

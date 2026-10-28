@@ -76,3 +76,8 @@ Server tests (75) boot an in-memory MongoDB automatically — no local database 
 - Cashfree subscriptions use a hosted checkout (`subscriptionsCheckout` from
   `sdk.cashfree.com`), not a redirect URL — the API returns a session id and
   the SPA opens the window. `CASHFREE_ENV` controls sandbox vs production.
+- Cashfree returns the browser to `return_url` with a **POST** (form data), so
+  that URL points at the API (`/api/billing/return`), which replies `303` to
+  `/plans?upgraded=1`. Sending the POST at the static SPA host returns nginx
+  `405 Not Allowed`. Only the redirect is handled here; entitlements come from
+  signed webhooks, never from this payload.

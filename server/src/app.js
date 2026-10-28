@@ -14,7 +14,7 @@ import { decksRouter } from './modules/decks/decks.routes.js';
 import { studyRouter } from './modules/study/study.routes.js';
 import { documentsRouter } from './modules/documents/documents.routes.js';
 import { generationRouter } from './modules/generation/generation.routes.js';
-import { billingRouter, cashfreeWebhookRouter } from './modules/billing/billing.routes.js';
+import { billingRouter, billingPublicRouter } from './modules/billing/billing.routes.js';
 import { requireAuth } from './modules/auth/auth.middleware.js';
 
 // Builds the Express app. Takes the session store as an argument so tests can
@@ -26,9 +26,9 @@ export function createApp({ sessionStore }) {
   app.use(helmet());
   app.use(cors({ origin: config.CLIENT_ORIGIN, credentials: true }));
 
-  // Cashfree signs the raw body, so this must be mounted BEFORE express.json().
-  // It is also outside the session/auth stack: Cashfree calls it server-to-server.
-  app.use('/api', cashfreeWebhookRouter);
+  // Cashfree signs webhook bodies and POSTs to the browser return URL, so these
+  // routes mount BEFORE express.json() and outside the session/auth stack.
+  app.use('/api', billingPublicRouter);
 
   app.use(express.json({ limit: '1mb' }));
   app.use(
