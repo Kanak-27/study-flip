@@ -148,6 +148,108 @@ describe('billing (Cashfree)', () => {
     expect(sub.body.plan.id).toBe('premium');
   });
 
+  it('reconciles a pending checkout when no webhook ever arrives', async () => {
+    const { agent } = await registerAgent(ctx, 19);
+
+    mockCashfree({
+      subscription_id: 'sf-generated',
+      subscription_session_id: 'sess_recon',
+      subscription_status: 'INITIALIZED',
+    });
+    await agent.post('/api/billing/checkout').send({ phone: '9876543210' });
+
+    const pending = await Subscription.findOne({}).sort({ createdAt: -1 });
+    expect(pending.status).toBe('pending');
+
+    // Cashfree reports the mandate as authorised, but the webhook never landed.
+    mockCashfree({
+      subscription_id: pending.providerSubscriptionId,
+      cf_subscription_id: 'cf_recon',
+      subscription_status: 'ACTIVE',
+      authorization_details: { authorization_status: 'ACTIVE' },
+      next_schedule_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 19),
+    });
+
+    // Skip the reconcile throttle (the row was just written).
+    await Subscription.collection.updateOne(
+      { _id: pending._id },
+      { $set: { updatedAt: new Date(Date.now() - 60000) } },
+    );
+
+    const sub = await agent.get('/api/billing/subscription');
+    expect(sub.body.plan.id).toBe('premium');
+    expect(sub.body.subscription.status).toBe('active');
+    expect(new Date(sub.body.subscription.currentPeriodEnd).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('does not re-check Cashfree on every poll', async () => {
+    const { agent } = await registerAgent(ctx, 22);
+    mockCashfree({ subscription_session_id: 'sess_throttle' });
+    await agent.post('/api/billing/checkout').send({ phone: '9876543210' });
+
+    const pending = await Subscription.findOne({}).sort({ _id: -1 });
+    await Subscription.collection.updateOne(
+      { _id: pending._id },
+      { $set: { updatedAt: new Date(Date.now() - 60000), providerCheckedAt: null } },
+    );
+
+    const fetchMock = mockCashfree({
+      subscription_id: pending.providerSubscriptionId,
+      subscription_status: 'INITIALIZED',
+    });
+
+    await agent.get('/api/billing/subscription');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Immediately again: the throttle must skip the provider entirely.
+    await agent.get('/api/billing/subscription');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconciles from the return_url hint after checkout', async () => {
+    const { agent } = await registerAgent(ctx, 20);
+
+    mockCashfree({ subscription_id: 'sf-generated', subscription_session_id: 'sess_ret' });
+    await agent.post('/api/billing/checkout').send({ phone: '9876543210' });
+
+    const pending = await Subscription.findOne({}).sort({ createdAt: -1 });
+
+    mockCashfree({
+      subscription_id: pending.providerSubscriptionId,
+      subscription_status: 'ACTIVE',
+      authorization_details: { authorization_status: 'ACTIVE' },
+      next_schedule_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 19),
+    });
+
+    const ret = await ctx.request
+      .post('/api/billing/return')
+      .type('form')
+      .send({ cf_status: 'ACTIVE', cf_subscriptionId: pending.providerSubscriptionId });
+    expect(ret.status).toBe(303);
+
+    const sub = await agent.get('/api/billing/subscription');
+    expect(sub.body.plan.id).toBe('premium');
+  });
+
+  it('does not grant premium from a return_url hint alone', async () => {
+    // The redirect payload is attacker-controllable, so a bogus id must change
+    // nothing. Only Cashfree's API answer is trusted.
+    const { agent } = await registerAgent(ctx, 21);
+    mockCashfree({
+      subscription_id: `sf-${'0'.repeat(24)}-x`,
+      subscription_status: 'INITIALIZED',
+    });
+
+    const ret = await ctx.request
+      .post('/api/billing/return')
+      .type('form')
+      .send({ cf_status: 'ACTIVE', cf_subscriptionId: 'made-up-id' });
+    expect(ret.status).toBe(303);
+
+    const sub = await agent.get('/api/billing/subscription');
+    expect(sub.body.plan.id).toBe('free');
+  });
+
   it('activates premium from a signed webhook', async () => {
     const { agent, user } = await registerAgent(ctx, 13);
     const res = await postWebhook(activeEvent(`sf-${user.id}-t2`));

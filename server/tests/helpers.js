@@ -20,6 +20,9 @@ export async function setupTestApp() {
   process.env.CASHFREE_CLIENT_SECRET ??= '';
   process.env.CASHFREE_WEBHOOK_SECRET ??= '';
   process.env.CASHFREE_PLAN_ID ??= '';
+  // Valid value, not empty: config validates it as a URL.
+  process.env.BILLING_RETURN_URL ??= 'http://localhost:5173/api/billing/return';
+  process.env.CLIENT_ORIGIN ??= 'http://localhost:5173';
 
   mongod = await MongoMemoryServer.create();
   process.env.MONGO_URI = mongod.getUri('studyflip-test');

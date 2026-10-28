@@ -9,6 +9,7 @@ import {
   findSubscriptionByProviderId,
   cancelSubscription,
   generationsUsedThisMonth,
+  markProviderChecked,
 } from './billing.service.js';
 import {
   billingConfigured,
@@ -16,6 +17,7 @@ import {
   ensurePlan,
   createSubscription,
   cancelProviderSubscription,
+  fetchSubscription,
   verifyWebhookSignature,
 } from './cashfree.client.js';
 import { config } from '../../platform/config.js';
@@ -35,18 +37,28 @@ export const billingPublicRouter = Router();
 // "405 Not Allowed": nginx serves the app as static files and refuses non-GET
 // methods, so the fallback to index.html never happens.
 //
-// We deliberately do not trust this payload — the SPA only needs to know it
-// came back, and entitlements are granted from signed webhooks. Answering with
-// a 303 turns the POST into a clean GET so a refresh doesn't resubmit it.
-function billingReturn(_req, res) {
+// The payload itself is not trusted for entitlements — it is only a hint that a
+// subscription id exists, and we confirm the truth with Cashfree's API. Answering
+// with a 303 turns the POST into a clean GET so a refresh doesn't resubmit it.
+async function billingReturn(req, res) {
+  try {
+    const hint = req.body?.cf_subscriptionId;
+    if (typeof hint === 'string' && hint) {
+      const sub = await findSubscriptionByProviderId(hint);
+      if (sub) await reconcileSubscription(sub, { force: true });
+    }
+  } catch (err) {
+    // Never block the redirect: the SPA also reconciles while polling.
+    logger.warn({ err }, 'cashfree return reconcile failed');
+  }
   res.redirect(303, `${config.CLIENT_ORIGIN}/plans?upgraded=1`);
 }
 
-billingPublicRouter.get('/billing/return', billingReturn);
+billingPublicRouter.get('/billing/return', wrap(billingReturn));
 billingPublicRouter.post(
   '/billing/return',
   urlencoded({ extended: false, limit: '32kb' }), // drain the form body
-  billingReturn,
+  wrap(billingReturn),
 );
 
 billingPublicRouter.post(
@@ -87,6 +99,7 @@ billingPublicRouter.post(
     }
 
     await applyEvent(event);
+    logger.info({ type: event?.type }, 'cashfree webhook processed');
     res.json({ received: true });
   }),
 );
@@ -98,7 +111,28 @@ billingRouter.get('/plans', (_req, res) => {
 billingRouter.get(
   '/billing/subscription',
   wrap(async (req, res) => {
-    const { plan, subscription } = await getEntitlements(req.userId);
+    let { plan, subscription } = await getEntitlements(req.userId);
+
+    // Self-heal: webhooks are best-effort. If their URL is wrong, blocked, or
+    // the event was never subscribed, a successful payment would otherwise
+    // leave the user on Free forever. When we think they are not premium but
+    // Cashfree has a mandate for them, ask Cashfree directly — it is the
+    // authority, so this cannot be used to grant access without paying.
+    if (
+      subscription?.providerSubscriptionId &&
+      plan.id !== 'premium' &&
+      subscription.status !== 'canceled'
+    ) {
+      const synced = await reconcileSubscription(subscription).catch((err) => {
+        logger.warn(
+          { err, subscriptionId: subscription.providerSubscriptionId },
+          'cashfree reconcile failed',
+        );
+        return null;
+      });
+      if (synced) ({ plan, subscription } = await getEntitlements(req.userId));
+    }
+
     const used = await generationsUsedThisMonth(req.userId);
     res.json({
       plan,
@@ -345,6 +379,97 @@ async function applyEvent(event) {
     default:
       logger.info({ type: event?.type }, 'cashfree webhook ignored');
   }
+}
+
+// --- reconciliation ---------------------------------------------------------
+//
+// Webhooks are the fast path, not the only path. Cashfree's own guidance is to
+// treat the browser redirect and the webhook as unreliable; the Subscriptions
+// API is the source of truth. This pulls the current mandate state and maps it
+// onto our entitlement columns, so a missed webhook self-corrects on the next
+// page load instead of needing manual support.
+
+// A pending row is re-checked at most this often, so polling the page cannot be
+// used to hammer Cashfree's API.
+const RECONCILE_INTERVAL_MS = 5000;
+
+async function reconcileSubscription(sub, { force = false } = {}) {
+  if (!billingConfigured() || !sub?.providerSubscriptionId) return null;
+
+  const lastChecked = sub.providerCheckedAt ?? sub.updatedAt;
+  if (!force && Date.now() - new Date(lastChecked ?? 0).getTime() < RECONCILE_INTERVAL_MS) {
+    return null;
+  }
+
+  const data = await fetchSubscription(sub.providerSubscriptionId);
+  await markProviderChecked(sub.userId);
+  logger.info(
+    { subscriptionId: sub.providerSubscriptionId, status: data?.subscription_status },
+    'cashfree subscription re-checked',
+  );
+  return applyProviderState({
+    userId: sub.userId,
+    subscriptionId: sub.providerSubscriptionId,
+    data,
+    existingPeriodEnd: sub.currentPeriodEnd,
+  });
+}
+
+async function applyProviderState({ userId, subscriptionId, data, existingPeriodEnd }) {
+  const providerStatus = data?.subscription_status;
+  if (!providerStatus) return null;
+
+  const authStatus = data?.authorization_details?.authorization_status;
+  const subscriptionRef = data?.cf_subscription_id;
+  const periodEnd =
+    parseCashfreeDate(data?.next_schedule_date) ??
+    existingPeriodEnd ??
+    addMonths(new Date(), 1);
+
+  if (providerStatus === 'ACTIVE') {
+    // A failed/pending authorisation must never buy premium, even if the
+    // subscription row says ACTIVE.
+    if (authStatus && !['ACTIVE', 'PENDING'].includes(authStatus)) return null;
+    return upsertSubscription({
+      userId,
+      subscriptionId,
+      subscriptionRef,
+      planId: 'premium',
+      status: 'active',
+      currentPeriodEnd: periodEnd,
+      canceledAt: null,
+    });
+  }
+
+  if (['ON_HOLD', 'CUSTOMER_PAUSED', 'BANK_APPROVAL_PENDING'].includes(providerStatus)) {
+    return upsertSubscription({
+      userId,
+      subscriptionId,
+      subscriptionRef,
+      planId: 'premium',
+      status: 'past_due',
+      currentPeriodEnd: periodEnd,
+    });
+  }
+
+  if (
+    ['CANCELLED', 'CUSTOMER_CANCELLED', 'EXPIRED', 'COMPLETED', 'CARD_EXPIRED', 'LINK_EXPIRED'].includes(
+      providerStatus,
+    )
+  ) {
+    return upsertSubscription({
+      userId,
+      subscriptionId,
+      subscriptionRef,
+      planId: 'premium',
+      status: 'canceled',
+      currentPeriodEnd: existingPeriodEnd ?? periodEnd,
+      canceledAt: new Date(),
+    });
+  }
+
+  // INITIALIZED: still waiting on the customer, nothing to grant.
+  return null;
 }
 
 // --- helpers ---

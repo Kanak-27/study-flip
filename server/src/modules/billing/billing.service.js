@@ -18,6 +18,9 @@ const subscriptionSchema = new Schema(
     // until this moment even if the mandate is cancelled — they paid for it.
     currentPeriodEnd: { type: Date },
     canceledAt: { type: Date },
+    // Last time we asked Cashfree for this mandate's real state. Throttles
+    // reconciliation so polling the page cannot hammer the provider.
+    providerCheckedAt: { type: Date },
   },
   { timestamps: true },
 );
@@ -107,6 +110,12 @@ export async function findSubscriptionByUserId(userId) {
 
 export async function findSubscriptionByProviderId(subscriptionId) {
   return Subscription.findOne({ providerSubscriptionId: subscriptionId });
+}
+
+// Records that we just asked Cashfree for this mandate, even when nothing
+// changed — otherwise an abandoned checkout would be re-checked on every poll.
+export async function markProviderChecked(userId) {
+  await Subscription.updateOne({ userId }, { $set: { providerCheckedAt: new Date() } });
 }
 
 export async function cancelSubscription(userId, currentPeriodEnd) {
