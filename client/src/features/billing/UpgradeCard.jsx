@@ -1,31 +1,18 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError } from '../../api/client.js';
+import { api } from '../../api/client.js';
+import CheckoutButton from './CheckoutButton.jsx';
 
-// Shows the current plan and usage; "Upgrade" starts a Stripe Checkout
-// session and redirects to it. Degrades with a note when billing isn't
-// configured on the server.
+// Shows the current plan and usage; "Upgrade" starts a Cashfree subscription
+// checkout. Degrades with a note when billing isn't configured on the server.
 export default function UpgradeCard() {
   const [info, setInfo] = useState(null);
   const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api('/api/billing/subscription')
       .then(setInfo)
       .catch((err) => setError(err.message));
   }, []);
-
-  async function upgrade() {
-    setBusy(true);
-    setError(null);
-    try {
-      const { url } = await api('/api/billing/checkout', { method: 'POST' });
-      window.location.href = url;
-    } catch (err) {
-      setError(err instanceof ApiError && err.status === 404 ? err.message : 'Could not start checkout. Try again later.');
-      setBusy(false);
-    }
-  }
 
   if (error && !info) {
     return (
@@ -41,7 +28,7 @@ export default function UpgradeCard() {
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-slate-900">{info.plan.name} plan</p>
           <p className="mt-0.5 text-xs text-slate-500">
@@ -49,20 +36,12 @@ export default function UpgradeCard() {
           </p>
         </div>
         {!isPremium && (
-          <button
-            onClick={upgrade}
-            disabled={busy}
-            className="rounded-md bg-forest-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-forest-700 disabled:opacity-60"
-          >
-            {busy ? 'Redirecting…' : 'Upgrade'}
-          </button>
+          <CheckoutButton
+            label="Upgrade"
+            buttonClassName="rounded-md bg-forest-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-forest-700 disabled:opacity-60"
+          />
         )}
       </div>
-      {error && (
-        <p role="alert" className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
-          {error}
-        </p>
-      )}
     </div>
   );
 }

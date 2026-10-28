@@ -13,7 +13,7 @@ See `PLAN.md` for the engineering plan.
 - **Study sessions** — due-queue or per-deck, 3D flip UI, Again/Hard/Easy ratings
 - **SM-2 scheduling** — ease, intervals, lapses; failed cards rejoin immediately
 - **Dashboard** — decks/cards/due/reviews, recall accuracy, day streak, 30-day activity
-- **Billing** — free tier (5 gens/mo) + premium ($8/mo, 200 gens/mo) via Stripe Checkout & webhooks
+- **Billing** — free tier (5 gens/mo) + premium (₹699/mo, 200 gens/mo) via Cashfree Subscriptions (UPI/card mandates)
 
 ## Prerequisites
 
@@ -43,9 +43,11 @@ processes under one supervisor.
 | `GROQ_API_KEY`      | no       | Groq key; omit to disable AI generation (graceful) |
 | `GROQ_BASE_URL`     | no       | default `https://api.groq.com/openai/v1`         |
 | `GROQ_MODEL`        | no       | default `openai/gpt-oss-120b`                    |
-| `STRIPE_SECRET_KEY` | no       | omit to disable billing (checkout returns 404)   |
-| `STRIPE_PRICE_PREMIUM` | no    | premium price ID                                 |
-| `STRIPE_WEBHOOK_SECRET` | no  | for signature-verified webhooks                  |
+| `CASHFREE_CLIENT_ID` | no      | Cashfree app id; omit to disable billing (404)   |
+| `CASHFREE_CLIENT_SECRET` | no  | Cashfree secret key (also signs webhooks)        |
+| `CASHFREE_ENV`      | no       | `sandbox` (default) or `production`              |
+| `CASHFREE_PLAN_ID`  | no       | plan id; created automatically when empty        |
+| `CASHFREE_PLAN_AMOUNT` | no    | monthly premium price in INR, default `699`      |
 | `PORT`              | no       | default `4000`                                   |
 
 ## Tests
@@ -54,7 +56,7 @@ processes under one supervisor.
 npm test
 ```
 
-Server tests (49) boot an in-memory MongoDB automatically — no local database needed.
+Server tests (75) boot an in-memory MongoDB automatically — no local database needed.
 
 ## Deployment
 
@@ -65,5 +67,12 @@ Server tests (49) boot an in-memory MongoDB automatically — no local database 
   CDN or reverse proxy and proxy `/api` to the API (same-origin keeps cookies simple).
 - Behind a reverse proxy the app already sets `trust proxy` for correct
   secure-cookie behavior (`SESSION_SECRET` must be set, `NODE_ENV=production`).
-- Stripe: point a webhook at `POST /api/billing/webhook` with the signing secret
-  in `STRIPE_WEBHOOK_SECRET`; the raw body is verified before any state change.
+- Cashfree: add a webhook endpoint pointing at `POST /api/billing/webhook` and
+  subscribe to the subscription events (`SUBSCRIPTION_STATUS_CHANGED`,
+  `SUBSCRIPTION_AUTH_STATUS`, `SUBSCRIPTION_PAYMENT_SUCCESS`/`FAILED`). The
+  signature (`x-webhook-signature`) is verified against the raw body before any
+  state change. Cashfree's documented algorithm signs with the client secret;
+  a separate dashboard webhook secret is also accepted if one is configured.
+- Cashfree subscriptions use a hosted checkout (`subscriptionsCheckout` from
+  `sdk.cashfree.com`), not a redirect URL — the API returns a session id and
+  the SPA opens the window. `CASHFREE_ENV` controls sandbox vs production.

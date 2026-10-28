@@ -13,6 +13,14 @@ export async function setupTestApp() {
   process.env.NODE_ENV = 'test';
   process.env.SESSION_SECRET ??= 'test-secret-at-least-16-chars';
 
+  // Billing must be deterministic: a developer's real server/.env (sandbox keys)
+  // must not leak into tests and silently flip the app into "billing on".
+  // `??=` keeps what a test set explicitly, e.g. billing.test.js.
+  process.env.CASHFREE_CLIENT_ID ??= '';
+  process.env.CASHFREE_CLIENT_SECRET ??= '';
+  process.env.CASHFREE_WEBHOOK_SECRET ??= '';
+  process.env.CASHFREE_PLAN_ID ??= '';
+
   mongod = await MongoMemoryServer.create();
   process.env.MONGO_URI = mongod.getUri('studyflip-test');
 

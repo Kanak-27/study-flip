@@ -7,11 +7,17 @@ const subscriptionSchema = new Schema(
     // single doc per user; absent = free plan
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
     planId: { type: String, enum: ['free', 'premium'], default: 'free' },
-    status: { type: String, enum: ['active', 'past_due', 'canceled'], default: 'active' },
-    provider: { type: String, default: 'stripe' },
-    providerCustomerId: { type: String },
-    providerSubscriptionId: { type: String },
+    // `pending` = checkout opened, customer has not authorised the mandate yet.
+    status: { type: String, enum: ['pending', 'active', 'past_due', 'canceled'], default: 'pending' },
+    provider: { type: String, default: 'cashfree' },
+    // Cashfree subscription id we generate at checkout (sf-<userId>-<ts>).
+    providerSubscriptionId: { type: String, index: true },
+    // Cashfree's own numeric reference (cf_subscription_id).
+    providerSubscriptionRef: { type: String },
+    // End of the period the customer has already paid for. Premium is granted
+    // until this moment even if the mandate is cancelled — they paid for it.
     currentPeriodEnd: { type: Date },
+    canceledAt: { type: Date },
   },
   { timestamps: true },
 );
@@ -24,9 +30,13 @@ export const Subscription = model('Subscription', subscriptionSchema);
 // and premium gate goes through here, never through a plan literal.
 export async function getEntitlements(userId) {
   const sub = await Subscription.findOne({ userId });
-  const active = sub && sub.status === 'active' && (!sub.currentPeriodEnd || sub.currentPeriodEnd > new Date());
-  const plan = getPlan(active ? sub.planId : 'free');
-  return { plan, subscription: sub ?? null };
+  const now = new Date();
+  const entitled = Boolean(
+    sub &&
+      sub.planId === 'premium' &&
+      (sub.currentPeriodEnd ? sub.currentPeriodEnd > now : sub.status === 'active'),
+  );
+  return { plan: getPlan(entitled ? 'premium' : 'free'), subscription: sub ?? null };
 }
 
 // --- usage quotas ---
@@ -59,23 +69,50 @@ export async function recordGenerationUsage(userId, quantity = 1) {
 
 // --- subscription lifecycle (driven by webhooks only) ---
 
-// The webhook is the only writer of entitlements: the client never tells us
-// a user paid — Stripe does, once, with a verifiable signature.
-export async function upsertSubscription({ userId, customerId, subscriptionId, planId, status, currentPeriodEnd }) {
-  const sub = await Subscription.findOneAndUpdate(
-    { userId },
-    {
-      $set: { providerCustomerId: customerId, providerSubscriptionId: subscriptionId, planId, status, currentPeriodEnd },
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
-  return sub;
-}
+// The webhook is the only writer of entitlements: the client never tells us a
+// user paid — Cashfree does, with a signature we verify first.
+export async function upsertSubscription({
+  userId,
+  subscriptionId,
+  subscriptionRef,
+  planId,
+  status,
+  currentPeriodEnd,
+  canceledAt,
+}) {
+  const $set = { planId, status };
+  if (subscriptionId) $set.providerSubscriptionId = subscriptionId;
+  if (subscriptionRef) $set.providerSubscriptionRef = subscriptionRef;
+  if (currentPeriodEnd !== undefined) $set.currentPeriodEnd = currentPeriodEnd;
+  if (canceledAt !== undefined) $set.canceledAt = canceledAt;
 
-export async function cancelSubscription(userId) {
   return Subscription.findOneAndUpdate(
     { userId },
-    { $set: { status: 'canceled', planId: 'free' } },
+    { $set },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+}
+
+export async function markCheckoutPending({ userId, subscriptionId }) {
+  return Subscription.findOneAndUpdate(
+    { userId },
+    { $set: { providerSubscriptionId: subscriptionId, status: 'pending', planId: 'free' } },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+}
+
+export async function findSubscriptionByUserId(userId) {
+  return Subscription.findOne({ userId });
+}
+
+export async function findSubscriptionByProviderId(subscriptionId) {
+  return Subscription.findOne({ providerSubscriptionId: subscriptionId });
+}
+
+export async function cancelSubscription(userId, currentPeriodEnd) {
+  return Subscription.findOneAndUpdate(
+    { userId },
+    { $set: { status: 'canceled', canceledAt: new Date(), currentPeriodEnd } },
     { new: true },
   );
 }

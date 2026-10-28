@@ -69,7 +69,7 @@ database. No ORM abstraction, no message broker, no framework magic.
 | Auth | `express-session` + `connect-mongo` (session store in Mongo) | Session cookie in httpOnly cookie; sessions live in the DB so they can be revoked; no JWT key-rotation machinery |
 | PDF extraction | `unpdf` | Works in Node; text-layer extraction only for MVP |
 | AI provider | Groq (OpenAI-compatible chat completions) behind a thin internal gateway | Provider stays swappable; the gateway is the only place that knows vendor types |
-| Payments (Phase 7) | Stripe, webhook-driven | Industry default; entitlements change only on verified webhook events, never on client callbacks |
+| Payments (Phase 7) | Cashfree, webhook-driven | Industry default; entitlements change only on verified webhook events, never on client callbacks |
 | Styling | Tailwind CSS + CSS transforms for the flip | No component-library lock-in; the 3D flip is ~30 lines of CSS, no animation lib needed |
 | Tests | Vitest + Supertest (API/domain), Playwright (one happy-path E2E) | SM-2 and validation logic must be unit-tested; one E2E guards the core loop |
 | Hosting (suggested) | Render/Railway (API + worker), MongoDB Atlas (free tier), Vercel/Netlify (static client) | Managed everything, generous free tiers to start; worker runs as its own service so long jobs don't block API requests |
@@ -115,7 +115,7 @@ Application       Use-case services (one function per business action)
     ↓
 Domain            Pure logic: SM-2 scheduling, card validation, quota rules, plan limits
     ↓
-Infrastructure    Mongoose repositories, job queue, AI gateway, PDF extractor, Stripe
+Infrastructure    Mongoose repositories, job queue, AI gateway, PDF extractor, Cashfree
 ```
 
 Rules that keep this honest:
@@ -141,7 +141,7 @@ server/src/modules/
   study/         study sessions, review recording, due-queue queries
   scheduling/    SM-2 domain logic (pure), scheduling state transitions
   analytics/     dashboard aggregates, streaks, accuracy
-  billing/       plans, quotas, usage events, Stripe webhooks   (Phase 7)
+  billing/       plans, quotas, usage events, Cashfree webhooks   (Phase 7)
 ```
 
 Each module exposes a `service.js` (public API) and a `routes.js` (its Express router),
@@ -327,7 +327,7 @@ until the previous milestone is verified by running the app, not just by green t
 | 4 — AI generation | Gateway, prompt, chunking, validation, run lifecycle, review/edit/save | PDF → editable deck in one flow |
 | 5 — Spaced repetition | SM-2 module, scheduling state, due queue, rescheduling on review | Cards reappear per personal schedule |
 | 6 — Dashboard | Aggregates, accuracy, streaks, history | User can see progress and today's work |
-| 7 — Subscriptions | Plans, quotas, Stripe, verified webhooks, entitlement checks | Free limits enforced server-side; premium unlocked via webhook |
+| 7 — Subscriptions | Plans, quotas, Cashfree, verified webhooks, entitlement checks | Free limits enforced server-side; premium unlocked via webhook |
 | 8 — Hardening & deploy | Full test pass, error/loading polish, prod env, monitoring, launch | Deployed and usable by real users |
 
 Sequencing rationale: Phase 2 deliberately precedes any AI — the learning loop must work
@@ -350,7 +350,7 @@ Phase 5 ≈ 3 days, Phase 6 ≈ 4 days, Phase 7 ≈ 1 week, Phase 8 ≈ 4 days.
 | SM-2 bug corrupts schedules | Silent, user-visible trust damage | Pure function + table-driven tests; reviewLogs as append-only source of truth for recovery |
 | Cross-user data exposure | Critical privacy failure | Ownership enforced in one layer (use cases), scoping on every query, dedicated integration tests per endpoint |
 | Home-grown job queue misbehaves (lost jobs, double-runs, worker crash) | Documents stuck in `pending` | Atomic claim, visibility timeout + heartbeat reclaim, bounded retries, `failed` states surfaced in UI, queue logic covered by integration tests; BullMQ documented as the drop-in replacement if we outgrow it |
-| Vendor lock-in (AI, Stripe) | Cost/migration leverage lost | Internal gateway and thin billing adapter; domain never imports vendor types |
+| Vendor lock-in (AI, payments) | Cost/migration leverage lost | Internal gateway and thin billing adapter; domain never imports vendor types |
 
 ---
 
@@ -366,7 +366,7 @@ of them and this document gets updated before code is written:
 3. **Three-button rating scale** (Again / Hard / Easy) mapped onto SM-2's 0–5 — five buttons
    is a UX burden for the audience and can be added later without touching stored state.
 4. **Email/password first.** OAuth providers can be added later behind the same session layer.
-5. **Stripe** for payments in Phase 7, with entitlements driven exclusively by webhooks.
+5. **Cashfree** for payments in Phase 7, with entitlements driven exclusively by webhooks.
 6. **English-only prompts/UI** initially.
 7. **Plain JavaScript (ESM), no TypeScript.** The simplest possible toolchain means no `tsc`,
    no build step on the server, no type-level noise. The safety TypeScript would have given us

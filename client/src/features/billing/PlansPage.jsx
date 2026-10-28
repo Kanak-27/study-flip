@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError } from '../../api/client.js';
+import { useSearchParams } from 'react-router-dom';
+import { api } from '../../api/client.js';
 import Tooltip from '../../components/Tooltip.jsx';
+import CheckoutButton from './CheckoutButton.jsx';
 
 // Plans are fetched from the server (`GET /api/plans`) so this page never
 // hard-codes a price the backend doesn't agree with.
@@ -22,30 +24,54 @@ export default function PlansPage() {
   const [subInfo, setSubInfo] = useState(null);
   const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [searchParams] = useSearchParams();
+  const returningFromCheckout = searchParams.get('upgraded') === '1';
 
   useEffect(() => {
     api('/api/plans')
       .then((d) => setPlans(d.plans))
       .catch((err) => setError(err.message));
-    api('/api/billing/subscription')
-      .then(setSubInfo)
-      .catch(() => setSubInfo(null));
+    refreshSubscription().catch(() => setSubInfo(null));
   }, []);
 
-  async function upgrade() {
-    setBusy(true);
+  // Cashfree redirects back here before its webhook may have landed, so poll a
+  // few times instead of showing "Free plan" to someone who just paid.
+  useEffect(() => {
+    if (!returningFromCheckout) return undefined;
+    let attempts = 0;
+    const timer = setInterval(async () => {
+      attempts += 1;
+      try {
+        const info = await refreshSubscription();
+        if (info.plan.id === 'premium' || attempts >= 6) clearInterval(timer);
+      } catch {
+        if (attempts >= 6) clearInterval(timer);
+      }
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [returningFromCheckout]);
+
+  async function refreshSubscription() {
+    const info = await api('/api/billing/subscription');
+    setSubInfo(info);
+    return info;
+  }
+
+  async function cancel() {
+    if (!window.confirm('Cancel Premium? You keep access until the end of the period you already paid for.')) {
+      return;
+    }
+    setCanceling(true);
     setNote(null);
     try {
-      const { url } = await api('/api/billing/checkout', { method: 'POST' });
-      window.location.href = url;
+      const { subscription } = await api('/api/billing/cancel', { method: 'POST' });
+      setSubInfo((info) => (info ? { ...info, subscription } : info));
+      setNote('Subscription cancelled. Premium stays active until the end of the current period.');
     } catch (err) {
-      setNote(
-        err instanceof ApiError && err.status === 404
-          ? err.message
-          : 'Could not start checkout. Try again later.',
-      );
-      setBusy(false);
+      setNote(err.message);
+    } finally {
+      setCanceling(false);
     }
   }
 
@@ -60,6 +86,8 @@ export default function PlansPage() {
   }
 
   const currentPlanId = subInfo?.plan?.id ?? 'free';
+  const subscription = subInfo?.subscription;
+  const isCancelled = subscription?.status === 'canceled';
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
@@ -68,7 +96,7 @@ export default function PlansPage() {
           <h2 className="text-xl font-semibold text-slate-900">Plans &amp; pricing</h2>
           <p className="mt-1 text-sm text-slate-500">
             Studying, decks and the dashboard are free forever — paid plans raise the AI
-            generation quota and file size.
+            generation quota.
           </p>
         </div>
         {subInfo && (
@@ -80,10 +108,51 @@ export default function PlansPage() {
         )}
       </div>
 
+      {returningFromCheckout && currentPlanId !== 'premium' && (
+        <p role="status" className="mt-4 rounded-md bg-forest-50 px-3 py-2 text-sm text-forest-800">
+          Payment received — activating Premium. This usually takes a few seconds; refresh if it
+          doesn&apos;t update.
+        </p>
+      )}
+      {returningFromCheckout && currentPlanId === 'premium' && (
+        <p role="status" className="mt-4 rounded-md bg-forest-50 px-3 py-2 text-sm text-forest-800">
+          Payment confirmed — welcome to Premium.
+        </p>
+      )}
+
       {note && (
         <p role="status" className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
           {note}
         </p>
+      )}
+
+      {currentPlanId === 'premium' && subscription && (
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+          {isCancelled ? (
+            <span>
+              Subscription cancelled. Premium stays active until{' '}
+              {formatDate(subscription.currentPeriodEnd)}.
+            </span>
+          ) : (
+            <>
+              <span>
+                Renews automatically
+                {subscription.currentPeriodEnd
+                  ? ` on ${formatDate(subscription.currentPeriodEnd)}`
+                  : ' every month'}
+                .
+              </span>
+              <button
+                type="button"
+                onClick={cancel}
+                disabled={canceling}
+                className="font-semibold text-red-600 hover:text-red-700 disabled:opacity-60"
+              >
+                {canceling ? 'Cancelling…' : 'Cancel subscription'}
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       {plans === null ? (
@@ -93,6 +162,7 @@ export default function PlansPage() {
           {plans.map((plan) => {
             const isCurrent = plan.id === currentPlanId;
             const isPremium = plan.id === 'premium';
+            const symbol = plan.currency === 'INR' ? '₹' : '$';
             return (
               <section
                 key={plan.id}
@@ -109,7 +179,8 @@ export default function PlansPage() {
                 <div className="flex items-baseline justify-between">
                   <h3 className="text-lg font-semibold text-slate-900">{plan.name}</h3>
                   <p className="text-2xl font-bold text-slate-900">
-                    ${plan.priceMonthlyUsd}
+                    {symbol}
+                    {plan.priceMonthly}
                     <span className="text-sm font-normal text-slate-500">/month</span>
                   </p>
                 </div>
@@ -151,9 +222,7 @@ export default function PlansPage() {
                       Your current plan
                     </span>
                   ) : isPremium ? (
-                    <button onClick={upgrade} disabled={busy} className="btn-primary w-full justify-center">
-                      {busy ? 'Redirecting…' : 'Upgrade to Premium'}
-                    </button>
+                    <CheckoutButton buttonClassName="btn-primary w-full justify-center" />
                   ) : (
                     <span className="inline-flex w-full items-center justify-center rounded-full border border-slate-300 px-6 py-3 text-sm font-medium text-slate-500">
                       Included free
@@ -167,11 +236,20 @@ export default function PlansPage() {
       )}
 
       <p className="mt-8 text-xs text-slate-400">
-        Quotas reset at the start of each calendar month. Downgrades and cancellations apply at
-        the end of the current period.
+        Quotas reset at the start of each calendar month. Cancelling stops future charges; Premium
+        stays active until the period you already paid for ends.
       </p>
     </main>
   );
+}
+
+function formatDate(value) {
+  if (!value) return 'the end of the current period';
+  return new Date(value).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 function limitHint(key, value) {

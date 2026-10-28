@@ -14,7 +14,7 @@ import { decksRouter } from './modules/decks/decks.routes.js';
 import { studyRouter } from './modules/study/study.routes.js';
 import { documentsRouter } from './modules/documents/documents.routes.js';
 import { generationRouter } from './modules/generation/generation.routes.js';
-import { billingRouter, stripeWebhookRouter } from './modules/billing/billing.routes.js';
+import { billingRouter, cashfreeWebhookRouter } from './modules/billing/billing.routes.js';
 import { requireAuth } from './modules/auth/auth.middleware.js';
 
 // Builds the Express app. Takes the session store as an argument so tests can
@@ -25,6 +25,11 @@ export function createApp({ sessionStore }) {
   app.set('trust proxy', 1); // correct secure-cookie behavior behind a reverse proxy
   app.use(helmet());
   app.use(cors({ origin: config.CLIENT_ORIGIN, credentials: true }));
+
+  // Cashfree signs the raw body, so this must be mounted BEFORE express.json().
+  // It is also outside the session/auth stack: Cashfree calls it server-to-server.
+  app.use('/api', cashfreeWebhookRouter);
+
   app.use(express.json({ limit: '1mb' }));
   app.use(
     pinoHttp({
@@ -55,9 +60,6 @@ export function createApp({ sessionStore }) {
   );
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
-
-  // Stripe calls this server-to-server with a signed payload — no session.
-  app.use('/api', stripeWebhookRouter);
 
   // Brute-force protection on credential endpoints; generous enough for a
   // human, useless for a script. It must be mounted BEFORE the auth router:

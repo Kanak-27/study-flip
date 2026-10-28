@@ -12,6 +12,9 @@ const userSchema = new Schema(
     },
     passwordHash: { type: String, required: true, select: false },
     name: { type: String, required: true, trim: true, maxlength: 100 },
+    // Optional: collected on first checkout because Cashfree mandates need a
+    // phone number for the recurring-payment authorisation.
+    phone: { type: String, trim: true },
   },
   { timestamps: true },
 );

@@ -28,6 +28,20 @@ const schema = z.object({
   GROQ_API_KEY: z.string().optional(),
   GROQ_BASE_URL: z.string().url().default('https://api.groq.com/openai/v1'),
   GROQ_MODEL: z.string().default('openai/gpt-oss-120b'),
+
+  // Cashfree (subscriptions / recurring mandates). All optional: without keys
+  // billing stays disabled and checkout returns 404 instead of failing later.
+  CASHFREE_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
+  CASHFREE_CLIENT_ID: z.string().optional(),
+  CASHFREE_CLIENT_SECRET: z.string().optional(),
+  // Plan ID from the dashboard, or leave empty to create it on first checkout.
+  CASHFREE_PLAN_ID: z.string().optional(),
+  // Monthly premium price in INR. Cashfree plans are INR by default.
+  CASHFREE_PLAN_AMOUNT: z.coerce.number().positive().default(699),
+  CASHFREE_API_VERSION: z.string().default('2025-01-01'),
+  // Cashfree signs webhooks with your client secret; override only if you
+  // deliberately rotate the signing secret separately.
+  CASHFREE_WEBHOOK_SECRET: z.string().optional(),
 });
 
 const result = schema.safeParse(process.env);
