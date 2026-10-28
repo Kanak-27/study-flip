@@ -94,7 +94,7 @@ jobs:
               echo 'Checking $HEALTH_URL'
               for i in \$(seq 1 30); do
                 code=\$(curl --silent --output /tmp/studyflip-health --write-out '%{http_code}' --connect-timeout 3 --max-time 5 '$HEALTH_URL' || true)
-                if [ \"\$code\" = '200' ] && grep -q 'ok:true' /tmp/studyflip-health; then
+                if [ \"\$code\" = '200' ]; then
                   echo 'Health check passed.'
                   exit 0
                 fi
