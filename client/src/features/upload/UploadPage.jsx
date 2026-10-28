@@ -20,6 +20,9 @@ export default function UploadPage() {
   const [documents, setDocuments] = useState(null);
   const [error, setError] = useState(null);
   const [busyDocId, setBusyDocId] = useState(null);
+  // 'generate' while the AI writes new cards, 'view' while we fetch an old run.
+  // Only used for the wording of the progress panel.
+  const [busyMode, setBusyMode] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadName, setUploadName] = useState('');
   const [run, setRun] = useState(null); // { runId, cards, status, error }
@@ -27,6 +30,17 @@ export default function UploadPage() {
   const [deckTitle, setDeckTitle] = useState('');
   const [saving, setSaving] = useState(false);
   const fileRef = useRef(null);
+  // The progress panel and the finished cards share this spot, below the
+  // document list. It is off-screen on short windows, so anything that starts
+  // or finishes a run scrolls it into view — otherwise the page looks dead.
+  const resultsRef = useRef(null);
+
+  function revealResults() {
+    // Let React commit the panel first, then bring it into view.
+    requestAnimationFrame(() => {
+      resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
 
   const load = useCallback(() => {
     return api('/api/documents')
@@ -44,6 +58,7 @@ export default function UploadPage() {
   // Keep statuses live while anything is still processing, so "pending" and
   // "extracting" resolve to their final state without a manual reload.
   const hasPending = documents?.some((d) => TRANSIENT_STATUSES.has(d.status)) ?? false;
+  const busyDoc = documents?.find((d) => d.id === busyDocId) ?? null;
   useEffect(() => {
     if (!hasPending) return;
     const timer = setInterval(load, POLL_MS);
@@ -73,41 +88,61 @@ export default function UploadPage() {
 
   async function generate(doc) {
     setBusyDocId(doc.id);
+    setBusyMode('generate');
     setError(null);
     setRun(null);
+    revealResults();
     try {
       const start = await api(`/api/documents/${doc.id}/generate`, { method: 'POST' });
       // Poll the run until it leaves 'running'. Bounded: if the worker never
       // picks it up we tell the user instead of spinning forever.
       let timedOut = false;
       const deadline = Date.now() + GENERATION_TIMEOUT_MS;
-      let current;
+      let current = null;
+      let lastError = null;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, POLL_MS));
-        ({ run: current } = await api(`/api/generation-runs/${start.runId}`));
+        try {
+          ({ run: current } = await api(`/api/generation-runs/${start.runId}`));
+          lastError = null;
+        } catch (err) {
+          // A dropped request or a 5xx blip must not discard a run that is
+          // still finishing in the background; keep polling. Only definitive
+          // answers (401/404) are worth giving up on.
+          if (err.status && err.status < 500) throw err;
+          lastError = err;
+          continue;
+        }
         if (current.status !== 'running') break;
       }
-      if (current.status === 'running') {
+      if (!current && lastError) throw lastError;
+      if (!current || current.status === 'running') {
         timedOut = true;
       }
       if (timedOut) {
         setError('Generation is taking longer than expected. It may still finish in the background — check back in a minute.');
         await load();
       } else {
+        const cards = current.cards ?? [];
         setRun({
           runId: current.id,
           status: current.status,
           error: current.error,
-          cards: current.cards,
+          cards,
           documentId: doc.id,
         });
-        setSelected(new Set(current.cards.map((_, i) => i)));
+        setSelected(new Set(cards.map((_, i) => i)));
         setDeckTitle(doc.filename.replace(/\.pdf$/i, ''));
+        // Refresh the list so this row immediately offers "View N cards"
+        // instead of looking untouched until the next page load.
+        load();
+        revealResults();
       }
     } catch (err) {
       setError(err.message);
     } finally {
       setBusyDocId(null);
+      setBusyMode(null);
     }
   }
 
@@ -116,22 +151,28 @@ export default function UploadPage() {
   async function viewRun(doc) {
     if (!doc.lastRun) return;
     setBusyDocId(doc.id);
+    setBusyMode('view');
     setError(null);
+    setRun(null);
+    revealResults();
     try {
       const { run: current } = await api(`/api/generation-runs/${doc.lastRun.runId}`);
+      const cards = current.cards ?? [];
       setRun({
         runId: current.id,
         status: current.status,
         error: current.error,
-        cards: current.cards,
+        cards,
         documentId: doc.id,
       });
-      setSelected(new Set(current.cards.map((_, i) => i)));
+      setSelected(new Set(cards.map((_, i) => i)));
       setDeckTitle(doc.filename.replace(/\.pdf$/i, ''));
+      revealResults();
     } catch (err) {
       setError(err.message);
     } finally {
       setBusyDocId(null);
+      setBusyMode(null);
     }
   }
 
@@ -247,51 +288,75 @@ export default function UploadPage() {
         </ul>
       )}
 
-      {run && (
-        <section className="mt-10 rounded-xl border border-slate-200 bg-white p-6">
-          <h3 className="font-semibold text-slate-900">
-            Generated cards
-            {run.status === 'partial' && <span className="ml-2 text-sm font-normal text-amber-600">(partial — some sections failed)</span>}
-            {run.status === 'failed' && <span className="ml-2 text-sm font-normal text-red-600">(failed)</span>}
-          </h3>
-          {run.error && <p className="mt-1 text-sm text-slate-500">{run.error}</p>}
-
-          {run.cards.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500">No cards were generated from this document.</p>
+      {(busyDocId || run) && (
+        <section
+          ref={resultsRef}
+          aria-live="polite"
+          aria-busy={busyDocId ? 'true' : 'false'}
+          className="mt-10 scroll-mt-6 rounded-xl border border-slate-200 bg-white p-6"
+        >
+          {busyDocId ? (
+            <div className="flex items-start gap-3">
+              <Spinner className="mt-0.5 h-4 w-4 text-forest-800" />
+              <div>
+                <p className="font-semibold text-slate-900">
+                  {busyMode === 'view' ? 'Loading cards…' : 'Generating flashcards…'}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {busyDoc?.filename ? `${busyDoc.filename} · ` : ''}
+                  {busyMode === 'view'
+                    ? 'fetching the cards from your last run.'
+                    : 'reading the PDF and writing cards. They will appear here in a few seconds.'}
+                </p>
+              </div>
+            </div>
           ) : (
             <>
-              <ul className="mt-4 max-h-96 divide-y divide-slate-100 overflow-y-auto">
-                {run.cards.map((card, i) => (
-                  <li key={i} className="flex items-start gap-3 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(i)}
-                      onChange={() => toggle(i)}
-                      className="mt-1 h-4 w-4 rounded border-slate-300 text-forest-800 focus:ring-forest-700"
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{card.question}</p>
-                      <p className="mt-0.5 text-sm text-slate-600">{card.answer}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <h3 className="font-semibold text-slate-900">
+                Generated cards
+                {run.status === 'partial' && <span className="ml-2 text-sm font-normal text-amber-600">(partial — some sections failed)</span>}
+                {run.status === 'failed' && <span className="ml-2 text-sm font-normal text-red-600">(failed)</span>}
+              </h3>
+              {run.error && <p className="mt-1 text-sm text-slate-500">{run.error}</p>}
 
-              <form onSubmit={saveToDeck} className="mt-4 flex flex-wrap items-center gap-3">
-                <input
-                  value={deckTitle}
-                  onChange={(e) => setDeckTitle(e.target.value)}
-                  placeholder="Deck title"
-                  className="flex-1 min-w-48 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700"
-                />
-                <button
-                  type="submit"
-                  disabled={saving || selected.size === 0 || !deckTitle.trim()}
-                  className="rounded-md bg-forest-800 px-4 py-2 text-sm font-medium text-white hover:bg-forest-700 disabled:opacity-60"
-                >
-                  {saving ? 'Saving…' : `Save ${selected.size} card${selected.size === 1 ? '' : 's'} to deck`}
-                </button>
-              </form>
+              {run.cards.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-500">No cards were generated from this document.</p>
+              ) : (
+                <>
+                  <ul className="mt-4 max-h-96 divide-y divide-slate-100 overflow-y-auto">
+                    {run.cards.map((card, i) => (
+                      <li key={i} className="flex items-start gap-3 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(i)}
+                          onChange={() => toggle(i)}
+                          className="mt-1 h-4 w-4 rounded border-slate-300 text-forest-800 focus:ring-forest-700"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{card.question}</p>
+                          <p className="mt-0.5 text-sm text-slate-600">{card.answer}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <form onSubmit={saveToDeck} className="mt-4 flex flex-wrap items-center gap-3">
+                    <input
+                      value={deckTitle}
+                      onChange={(e) => setDeckTitle(e.target.value)}
+                      placeholder="Deck title"
+                      className="flex-1 min-w-48 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700"
+                    />
+                    <button
+                      type="submit"
+                      disabled={saving || selected.size === 0 || !deckTitle.trim()}
+                      className="rounded-md bg-forest-800 px-4 py-2 text-sm font-medium text-white hover:bg-forest-700 disabled:opacity-60"
+                    >
+                      {saving ? 'Saving…' : `Save ${selected.size} card${selected.size === 1 ? '' : 's'} to deck`}
+                    </button>
+                  </form>
+                </>
+              )}
             </>
           )}
         </section>
