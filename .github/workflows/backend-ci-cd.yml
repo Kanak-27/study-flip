@@ -1,0 +1,94 @@
+name: Backend CI/CD
+
+# Runs the server tests, then pulls the latest main branch on the EC2 instance
+# and restarts the single PM2 process. That process runs `npm start` at the repo
+# root, which starts both the API and the background worker.
+#
+# Secrets:   EC2_HOST, EC2_USER, EC2_SSH_KEY
+# Variables: EC2_PORT (default 22), BACKEND_DEPLOY_PATH,
+#            BACKEND_PM2_APP (default "studyflip"),
+#            BACKEND_HEALTH_URL (default http://127.0.0.1:4000/api/health)
+#
+# The EC2 instance needs a clone of this repo at BACKEND_DEPLOY_PATH with read
+# access to GitHub, Node.js 22, PM2, and a server/.env file.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/backend-ci-cd.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/backend-ci-cd.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-deploy:
+    name: Test and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Configure SSH
+        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          SSH_HOST: ${{ secrets.EC2_HOST }}
+          SSH_PORT: ${{ vars.EC2_PORT || 22 }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy to EC2
+        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+        env:
+          SSH_HOST: ${{ secrets.EC2_HOST }}
+          SSH_USER: ${{ secrets.EC2_USER }}
+          SSH_PORT: ${{ vars.EC2_PORT || 22 }}
+          DEPLOY_PATH: ${{ vars.BACKEND_DEPLOY_PATH }}
+          PM2_APP: ${{ vars.BACKEND_PM2_APP || 'studyflip' }}
+          HEALTH_URL: ${{ vars.BACKEND_HEALTH_URL || 'http://127.0.0.1:4000/api/health' }}
+        run: |
+          if [ -z "$DEPLOY_PATH" ]; then
+            echo "BACKEND_DEPLOY_PATH is not set" >&2
+            exit 1
+          fi
+
+          ssh -i "$HOME/.ssh/deploy_key" -p "$SSH_PORT" -o BatchMode=yes -o ConnectTimeout=10 \
+            "$SSH_USER@$SSH_HOST" "
+              set -e
+              export NODE_ENV=production
+              cd '$DEPLOY_PATH'
+              GIT_TERMINAL_PROMPT=0 git fetch --prune origin main
+              git reset --hard origin/main
+              npm ci --omit=dev
+              pm2 restart '$PM2_APP' --update-env
+              curl --fail --silent --retry 10 --retry-delay 3 --retry-connrefused '$HEALTH_URL' > /dev/null
+            "

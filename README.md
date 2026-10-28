@@ -29,11 +29,9 @@ npm run dev:server                   # API on http://localhost:4000
 npm run dev:client                   # SPA on http://localhost:5173
 ```
 
-In a second terminal, run the background worker (PDF extraction + AI generation):
-
-```bash
-npm run worker -w server
-```
+`npm run dev:server` starts both the API and the background worker (via
+`server/scripts/with-worker.js`). For production, `npm start` runs the same two
+processes under one supervisor.
 
 ## Environment variables (server/.env)
 
@@ -60,8 +58,9 @@ Server tests (49) boot an in-memory MongoDB automatically — no local database 
 
 ## Deployment
 
-- **API + worker**: two processes from the same image (`node src/server.js` /
-  `node src/worker.js`); point `MONGO_URI` at Atlas, set all required env vars.
+- **API + worker**: `npm start` runs both under `scripts/with-worker.js`; they
+  can also be run separately with `node src/server.js` / `node src/worker.js`.
+  Point `MONGO_URI` at Atlas and set all required env vars.
 - **SPA**: `npm run build` emits static files in `client/dist`; serve from any
   CDN or reverse proxy and proxy `/api` to the API (same-origin keeps cookies simple).
 - Behind a reverse proxy the app already sets `trust proxy` for correct
