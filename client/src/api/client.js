@@ -24,3 +24,26 @@ export async function api(path, { method = 'GET', body } = {}) {
   }
   return data;
 }
+
+// Multipart upload. Same base URL, credentials and error shape as api(), but
+// the browser must set Content-Type itself so the multipart boundary is
+// included. Hand-rolling this call with fetch('/api/...') is a trap: it ignores
+// VITE_API_BASE and posts to whatever origin serves the SPA, which answers 405
+// when the site host is static files only.
+export async function apiUpload(path, formData) {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+
+  const data = res.status === 204 ? null : await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new ApiError(
+      res.status,
+      data?.error?.code ?? 'unknown',
+      data?.error?.message ?? 'Upload failed. Please try again.',
+    );
+  }
+  return data;
+}

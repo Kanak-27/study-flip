@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../../api/client.js';
+import { api, apiUpload } from '../../api/client.js';
 import Spinner from '../../components/Spinner.jsx';
 import UpgradeCard from '../billing/UpgradeCard.jsx';
 
@@ -59,9 +59,7 @@ export default function UploadPage() {
     const form = new FormData();
     form.append('file', file);
     try {
-      const res = await fetch('/api/documents', { method: 'POST', credentials: 'include', body: form });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error?.message ?? 'Upload failed.');
+      await apiUpload('/api/documents', form);
       // only clear the loader once the file is actually visible in the list
       await load();
     } catch (err) {
