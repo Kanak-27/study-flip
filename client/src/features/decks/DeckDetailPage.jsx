@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import Spinner from '../../components/Spinner.jsx';
+import Tooltip from '../../components/Tooltip.jsx';
 
 const POLL_MS = 2000;
 // Longest we'll block the button waiting on a run before telling the user it
@@ -21,6 +22,9 @@ export default function DeckDetailPage() {
   const [editDraft, setEditDraft] = useState({ question: '', answer: '' });
   const [regenerating, setRegenerating] = useState(false);
   const [regenDone, setRegenDone] = useState(null); // { added, skipped }
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [savingRename, setSavingRename] = useState(false);
 
   const load = useCallback(() => {
     Promise.all([api(`/api/decks/${deckId}`), api(`/api/decks/${deckId}/cards`)])
@@ -65,6 +69,23 @@ export default function DeckDetailPage() {
   async function deleteCard(cardId) {
     await api(`/api/cards/${cardId}`, { method: 'DELETE' });
     load();
+  }
+
+  // Rename the deck without leaving it — titles are how you find things again.
+  async function saveRename(e) {
+    e.preventDefault();
+    if (!renameValue.trim()) return;
+    setSavingRename(true);
+    setError(null);
+    try {
+      await api(`/api/decks/${deckId}`, { method: 'PATCH', body: { title: renameValue.trim() } });
+      setRenaming(false);
+      load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingRename(false);
+    }
   }
 
   async function deleteDeck() {
@@ -117,7 +138,47 @@ export default function DeckDetailPage() {
           <Link to="/decks" className="text-sm text-slate-400 hover:text-slate-600">
             ← All decks
           </Link>
-          <h2 className="mt-1 text-xl font-semibold text-slate-900">{deck.title}</h2>
+          {renaming ? (
+            <form onSubmit={saveRename} className="mt-1 flex items-center gap-2">
+              <input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                autoFocus
+                maxLength={200}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700"
+              />
+              <button
+                type="submit"
+                disabled={savingRename || !renameValue.trim()}
+                className="rounded-md bg-forest-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-forest-700 disabled:opacity-60"
+              >
+                {savingRename ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRenaming(false)}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <div className="mt-1 flex items-center gap-2">
+              <h2 className="text-xl font-semibold text-slate-900">{deck.title}</h2>
+              <Tooltip label="Rename this deck so it's easy to remember." side="bottom">
+                <button
+                  onClick={() => {
+                    setRenameValue(deck.title);
+                    setRenaming(true);
+                  }}
+                  aria-label="Rename this deck"
+                  className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-forest-800"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </button>
+              </Tooltip>
+            </div>
+          )}
           {deck.subject && <p className="text-sm text-slate-500">{deck.subject}</p>}
         </div>
         <div className="flex gap-2">
@@ -256,5 +317,23 @@ export default function DeckDetailPage() {
         </section>
       )}
     </div>
+  );
+}
+
+function PencilIcon({ className }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+    </svg>
   );
 }

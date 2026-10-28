@@ -23,6 +23,9 @@ const FLY_MS = 640;
 export default function StudyPage() {
   const [searchParams] = useSearchParams();
   const deckIdParam = searchParams.get('deckId');
+  // /study?mode=quick runs a quick-revision session: 10 random cards from
+  // decks made in the last 7 days, no deck picker.
+  const quick = searchParams.get('mode') === 'quick';
 
   // Opening /study always asks which deck to study. A deckId in the URL
   // (deep link from a deck page) preselects that deck and starts it at once.
@@ -42,7 +45,7 @@ export default function StudyPage() {
   const flyTimer = useRef(null);
 
   const startSession = useCallback(() => {
-    if (!chosenId) return;
+    if (!quick && !chosenId) return;
     setCards(null);
     setIndex(0);
     setFlipped(false);
@@ -52,22 +55,22 @@ export default function StudyPage() {
     setSessionError(null);
     api('/api/study/sessions', {
       method: 'POST',
-      body: { mode: 'deck', deckIds: [chosenId] },
+      body: quick ? { mode: 'quick' } : { mode: 'deck', deckIds: [chosenId] },
     })
       .then((data) => setCards(data.cards))
       .catch((err) => setSessionError(err.message));
-  }, [chosenId]);
+  }, [chosenId, quick]);
 
   useEffect(startSession, [startSession]);
   useEffect(() => () => clearTimeout(flyTimer.current), []);
 
   // Load the deck list for the picker (not needed once a session is running).
   useEffect(() => {
-    if (chosenId) return;
+    if (quick || chosenId) return;
     api('/api/decks')
       .then((data) => setDecks(data.decks))
       .catch((err) => setDecksError(err.message));
-  }, [chosenId]);
+  }, [chosenId, quick]);
 
   const card = cards?.[index];
   const total = cards?.length ?? 0;
@@ -141,7 +144,8 @@ export default function StudyPage() {
   });
 
   // The ask-first state: no deck chosen yet, so offer the picker.
-  if (!chosenId) {
+  // (Quick revision skips the picker entirely — it picks its own cards.)
+  if (!quick && !chosenId) {
     return (
       <div className="mx-auto max-w-5xl px-6 py-10">
         <h2 className="text-xl font-semibold text-slate-900">What do you want to study?</h2>
@@ -189,9 +193,13 @@ export default function StudyPage() {
         <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
           {sessionError}
         </p>
-        <div className="mt-4 flex justify-center gap-2">
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
           <button onClick={startSession} className="btn-primary">Try again</button>
-          <button onClick={() => setChosenId(null)} className="btn-secondary">Choose another deck</button>
+          {quick ? (
+            <Link to="/" className="btn-secondary">Back to dashboard</Link>
+          ) : (
+            <button onClick={() => setChosenId(null)} className="btn-secondary">Choose another deck</button>
+          )}
         </div>
       </div>
     );
@@ -201,6 +209,29 @@ export default function StudyPage() {
     return <div className="flex min-h-[50vh] items-center justify-center text-sm text-slate-500">Loading session…</div>;
   }
 
+  // Nothing to hand out: a brand-new account, or no decks inside the
+  // quick-revision window. Say which, rather than showing an empty session.
+  if (total === 0) {
+    return (
+      <div className="mx-auto max-w-2xl px-6 py-16 text-center">
+        <h2 className="text-2xl font-semibold text-slate-900">
+          {quick ? 'Nothing to revise yet' : 'No cards due right now'}
+        </h2>
+        <p className="mt-2 text-sm text-slate-500">
+          {quick
+            ? 'Quick revision draws 10 random cards from decks you created in the last 7 days. Make a deck first — upload a PDF or add cards by hand.'
+            : 'Everything scheduled is caught up. Pick a deck to study ahead, or come back tomorrow.'}
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <Link to={quick ? '/upload' : '/decks'} className="btn-primary">
+            {quick ? 'Upload a PDF' : 'Browse decks'}
+          </Link>
+          <Link to="/" className="btn-secondary">Back to dashboard</Link>
+        </div>
+      </div>
+    );
+  }
+
   if (done) {
     return (
       <div className="mx-auto max-w-2xl px-6 py-16 text-center">
@@ -208,9 +239,15 @@ export default function StudyPage() {
         <p className="mt-2 text-sm text-slate-500">
           You reviewed {answered} card{answered === 1 ? '' : 's'}.
         </p>
-        <div className="mt-6 flex justify-center gap-2">
-          <button onClick={startSession} className="btn-secondary">Study this deck again</button>
-          <button onClick={() => setChosenId(null)} className="btn-primary">Pick another deck</button>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <button onClick={startSession} className="btn-secondary">
+            {quick ? 'Draw 10 more cards' : 'Study this deck again'}
+          </button>
+          {quick ? (
+            <Link to="/" className="btn-primary">Back to dashboard</Link>
+          ) : (
+            <button onClick={() => setChosenId(null)} className="btn-primary">Pick another deck</button>
+          )}
         </div>
       </div>
     );
@@ -219,9 +256,16 @@ export default function StudyPage() {
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
       <div className="flex items-center justify-between text-sm text-slate-500">
-        <span>
-          Card {Math.min(index + 1, total)} of {total}
-        </span>
+        <div className="flex items-center gap-2">
+          {quick && (
+            <span className="rounded-full bg-forest-100 px-2.5 py-0.5 text-xs font-semibold text-forest-800">
+              Quick revision
+            </span>
+          )}
+          <span>
+            Card {Math.min(index + 1, total)} of {total}
+          </span>
+        </div>
         <Link to="/" className="hover:text-slate-700">
           End session
         </Link>

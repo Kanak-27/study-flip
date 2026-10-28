@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import Spinner from '../../components/Spinner.jsx';
+import UpgradeCard from '../billing/UpgradeCard.jsx';
 
 // Upload → extract → generate → review → save-to-deck. The worker does the
 // heavy lifting; this page polls status and renders the run's cards.
@@ -162,10 +163,18 @@ export default function UploadPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <h2 className="text-xl font-semibold text-slate-900">Upload & generate</h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Upload a PDF of your notes or textbook chapter; we extract the text and turn it into flashcards.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-2xl">
+          <h2 className="text-xl font-semibold text-slate-900">Upload &amp; generate</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Upload a PDF of your notes or textbook chapter; we extract the text and turn it into flashcards.
+          </p>
+        </div>
+        {/* you should see what a generation costs before you spend one */}
+        <div className="w-full max-w-sm">
+          <UpgradeCard />
+        </div>
+      </div>
 
       <label
         className={`mt-6 flex flex-col items-center rounded-xl border-2 border-dashed border-slate-300 bg-white p-10 text-center ${

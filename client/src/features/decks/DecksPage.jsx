@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
+import Tooltip from '../../components/Tooltip.jsx';
 
 export default function DecksPage() {
   const [decks, setDecks] = useState(null);
   const [error, setError] = useState(null);
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [savingRename, setSavingRename] = useState(false);
 
   const load = useCallback(() => {
     api('/api/decks')
@@ -36,6 +40,27 @@ export default function DecksPage() {
     if (!window.confirm(`Delete “${deck.title}” and its ${deck.cardCount} cards?`)) return;
     await api(`/api/decks/${deck.id}`, { method: 'DELETE' });
     load();
+  }
+
+  // Rename in place — a title you recognise is the whole point of a list.
+  function startRename(deck) {
+    setRenamingId(deck.id);
+    setRenameValue(deck.title);
+  }
+
+  async function saveRename() {
+    if (!renameValue.trim()) return;
+    setSavingRename(true);
+    setError(null);
+    try {
+      await api(`/api/decks/${renamingId}`, { method: 'PATCH', body: { title: renameValue.trim() } });
+      setRenamingId(null);
+      load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingRename(false);
+    }
   }
 
   return (
@@ -79,21 +104,68 @@ export default function DecksPage() {
         <ul className="mt-6 grid gap-4 sm:grid-cols-2">
           {decks.map((deck) => (
             <li key={deck.id} className="rounded-xl border border-slate-200 bg-white p-5">
-              <div className="flex items-start justify-between gap-2">
-                <Link to={`/decks/${deck.id}`} className="font-medium text-slate-900 hover:text-forest-800">
-                  {deck.title}
-                </Link>
-                <button
-                  onClick={() => deleteDeck(deck)}
-                  className="text-xs text-slate-400 hover:text-red-600"
-                  aria-label={`Delete ${deck.title}`}
+              {renamingId === deck.id ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    saveRename();
+                  }}
+                  className="grid gap-2"
                 >
-                  Delete
-                </button>
-              </div>
-              <p className="mt-1 text-sm text-slate-500">
-                {deck.cardCount} card{deck.cardCount === 1 ? '' : 's'}
-              </p>
+                  <input
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    autoFocus
+                    maxLength={200}
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={savingRename || !renameValue.trim()}
+                      className="rounded-md bg-forest-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-forest-700 disabled:opacity-60"
+                    >
+                      {savingRename ? 'Saving…' : 'Save name'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRenamingId(null)}
+                      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="flex items-start justify-between gap-2">
+                    <Link to={`/decks/${deck.id}`} className="font-medium text-slate-900 hover:text-forest-800">
+                      {deck.title}
+                    </Link>
+                    <div className="flex shrink-0 items-center gap-2 text-xs">
+                      <Tooltip label="Rename this deck so you can find it later." side="bottom">
+                        <button
+                          onClick={() => startRename(deck)}
+                          className="text-slate-400 hover:text-forest-800"
+                          aria-label={`Rename ${deck.title}`}
+                        >
+                          Rename
+                        </button>
+                      </Tooltip>
+                      <button
+                        onClick={() => deleteDeck(deck)}
+                        className="text-slate-400 hover:text-red-600"
+                        aria-label={`Delete ${deck.title}`}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {deck.cardCount} card{deck.cardCount === 1 ? '' : 's'}
+                  </p>
+                </>
+              )}
             </li>
           ))}
         </ul>

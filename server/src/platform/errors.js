@@ -9,7 +9,8 @@ export class AppError extends Error {
 }
 
 export const badRequest = (message) => new AppError(400, 'bad_request', message);
-export const unauthorized = () => new AppError(401, 'unauthorized', 'You must be signed in.');
+export const unauthorized = (message = 'You must be signed in.') =>
+  new AppError(401, 'unauthorized', message);
 export const forbidden = (message = 'You do not have access to this resource.') =>
   new AppError(403, 'forbidden', message);
 export const notFound = (message = 'Not found.') => new AppError(404, 'not_found', message);

@@ -16,8 +16,14 @@ export const reviewSchema = z.object({
 
 export const startSessionSchema = z.object({
   deckIds: z.array(z.string()).min(1).optional(),
-  mode: z.enum(['due', 'deck']).default('due'),
+  mode: z.enum(['due', 'deck', 'quick']).default('due'),
 });
+
+// Quick revision: a handful of random cards from decks made in the last week,
+// for the "I've got five minutes" case. $sample keeps the pick unbiased and
+// the aggregation honest; the queue is rebuilt every time, so nothing is
+// pinned — each visit is a fresh draw.
+const QUICK_REVISION = { windowDays: 7, cards: 10 };
 
 // --- due queue ---
 
@@ -45,6 +51,7 @@ export async function dueCountsByDeck(userId) {
 // scheduling state, so a lost session loses nothing — the user just starts a
 // new one. Card order and progress live client-side.
 export async function buildSessionCards(userId, { mode, deckIds } = {}) {
+  if (mode === 'quick') return quickRevisionCards(userId);
   if (mode === 'deck') {
     if (!deckIds?.length) throw badRequest('deckIds are required in deck mode.');
     const decks = await Deck.find({ userId, _id: { $in: deckIds }, deletedAt: null });
@@ -53,6 +60,25 @@ export async function buildSessionCards(userId, { mode, deckIds } = {}) {
   const cards = await dueCards(userId, { deckIds });
   return cards.map((c) => ({
     id: c.id,
+    deckId: c.deckId.toString(),
+    question: c.question,
+    answer: c.answer,
+  }));
+}
+
+// --- quick revision ---
+
+export async function quickRevisionCards(userId) {
+  const since = new Date(Date.now() - QUICK_REVISION.windowDays * 24 * 60 * 60 * 1000);
+  const decks = await Deck.find({ userId, deletedAt: null, createdAt: { $gte: since } }).select('_id');
+  if (!decks.length) return [];
+
+  const sampled = await Flashcard.aggregate([
+    { $match: { userId: oid(userId), deletedAt: null, deckId: { $in: decks.map((d) => d._id) } } },
+    { $sample: { size: QUICK_REVISION.cards } },
+  ]);
+  return sampled.map((c) => ({
+    id: c._id.toString(),
     deckId: c.deckId.toString(),
     question: c.question,
     answer: c.answer,

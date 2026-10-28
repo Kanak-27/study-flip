@@ -2,14 +2,17 @@ import { User } from './user.model.js';
 import { conflict, unauthorized } from '../../platform/errors.js';
 import { z, parseBody } from '../../platform/validation.js';
 
+// Emails are stored and compared in lowercase: a unique index on `email` is
+// case-sensitive, so "Kanak@Gmail.com" and "kanak@gmail.com" would otherwise
+// become two accounts — and signing in with the other casing would 401.
 export const registerSchema = z.object({
-  email: z.string().trim().email('Enter a valid email address'),
+  email: z.string().trim().toLowerCase().email('Enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters').max(128),
   name: z.string().trim().min(1, 'Name is required').max(100),
 });
 
 export const loginSchema = z.object({
-  email: z.string().trim().email('Enter a valid email address'),
+  email: z.string().trim().toLowerCase().email('Enter a valid email address'),
   password: z.string().min(1, 'Password is required'),
 });
 

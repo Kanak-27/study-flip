@@ -49,6 +49,9 @@ describe('auth', () => {
       password: 'wrong-password',
     });
     expect(bad.status).toBe(401);
+    // the login page shows this verbatim — it must actually say why, not
+    // imply the user isn't signed in while they're standing on the login form
+    expect(bad.body.error.message).toBe('Incorrect email or password.');
     // same message for unknown email and wrong password — no account enumeration
     const unknown = await ctx.request.post('/api/auth/login').send({
       email: 'ghost@example.com',
@@ -56,6 +59,24 @@ describe('auth', () => {
     });
     expect(unknown.status).toBe(401);
     expect(unknown.body.error.message).toBe(bad.body.error.message);
+  });
+
+  it('signs in regardless of email casing or stray whitespace', async () => {
+    await ctx.request.post('/api/auth/register').send(newUser(11));
+
+    const shouty = await ctx.request.post('/api/auth/login').send({
+      email: '  USER11@EXAMPLE.COM  ',
+      password: newUser(11).password,
+    });
+    expect(shouty.status).toBe(200);
+    expect(shouty.body.user.email).toBe('user11@example.com');
+
+    // and the stored account is lowercased, so it can't fork a second account
+    const registerUpper = await ctx.request
+      .post('/api/auth/register')
+      .send({ ...newUser(12), email: 'USER12@EXAMPLE.COM' });
+    expect(registerUpper.status).toBe(201);
+    expect(registerUpper.body.user.email).toBe('user12@example.com');
   });
 
   it('returns 401 from /me without a session', async () => {
@@ -109,5 +130,26 @@ describe('session isolation', () => {
     const res = await ctx.agent.get('/api/definitely-not-a-route');
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('not_found');
+  });
+});
+
+// Keep this LAST: it exhausts this app instance's 30-per-15-min credential
+// budget, so anything declared below would see 429s.
+describe('credential rate limiting', () => {
+  it('is actually applied to login and answers in the app error shape', async () => {
+    let res;
+    let sawLimitHeaders = false;
+    for (let i = 0; i < 35; i += 1) {
+      res = await ctx.request.post('/api/auth/login').send({
+        email: 'ghost@example.com',
+        password: 'whatever123',
+      });
+      if (res.headers['ratelimit-limit']) sawLimitHeaders = true;
+      if (res.status === 429) break;
+    }
+    expect(sawLimitHeaders).toBe(true); // the limiter runs on every attempt
+    expect(res.status).toBe(429);
+    expect(res.body.error.code).toBe('rate_limited');
+    expect(res.body.error.message).toMatch(/too many attempts/i);
   });
 });

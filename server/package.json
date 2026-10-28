@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
+    "dev": "node scripts/with-worker.js",
+    "dev:api": "node --watch src/server.js",
+    "start": "node scripts/with-worker.js --no-watch",
     "worker": "node src/worker.js",
     "test": "vitest run"
   },

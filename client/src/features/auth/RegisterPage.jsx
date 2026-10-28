@@ -27,7 +27,9 @@ export default function RegisterPage() {
     <AuthCard title="Create your account">
       <form onSubmit={onSubmit} className="space-y-4">
         <Field label="Name" value={name} onChange={setName} required />
-        <Field label="Email" type="email" value={email} onChange={setEmail} required />
+        {/* trimmed as you type — matches the server, and keeps the browser's
+            type=email validation from silently blocking a pasted address */}
+        <Field label="Email" type="email" value={email} onChange={(v) => setEmail(v.trim())} required />
         <Field label="Password" type="password" value={password} onChange={setPassword} required hint="At least 8 characters" />
         {error && <ErrorNote>{error}</ErrorNote>}
         <SubmitButton busy={busy}>Create account</SubmitButton>

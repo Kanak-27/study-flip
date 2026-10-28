@@ -9,6 +9,7 @@ import DecksPage from './features/decks/DecksPage.jsx';
 import DeckDetailPage from './features/decks/DeckDetailPage.jsx';
 import StudyPage from './features/study/StudyPage.jsx';
 import UploadPage from './features/upload/UploadPage.jsx';
+import PlansPage from './features/billing/PlansPage.jsx';
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -80,6 +81,16 @@ export default function App() {
           <Protected>
             <Shell>
               <UploadPage />
+            </Shell>
+          </Protected>
+        }
+      />
+      <Route
+        path="/plans"
+        element={
+          <Protected>
+            <Shell>
+              <PlansPage />
             </Shell>
           </Protected>
         }

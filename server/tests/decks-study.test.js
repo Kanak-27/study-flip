@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setupTestApp, registerAgent } from './helpers.js';
+import { Deck } from '../src/modules/decks/deck.model.js';
+import { oid } from '../src/platform/oid.js';
 
 let ctx;
 let alice; // agent
@@ -221,7 +223,6 @@ describe('ownership scoping', () => {
     const res = await bob.get('/api/decks');
     expect(res.body.decks).toHaveLength(0);
   });
-
   it('deleting a deck hides its cards too', async () => {
     const deck = await alice.post('/api/decks').send({ title: 'Doomed' });
     await alice.post(`/api/decks/${deck.body.deck.id}/cards`).send({ question: 'q', answer: 'a' });
@@ -229,5 +230,90 @@ describe('ownership scoping', () => {
 
     const decks = await alice.get('/api/decks');
     expect(decks.body.decks.find((d) => d.id === deck.body.deck.id)).toBeUndefined();
+  });
+});
+
+describe('quick revision', () => {
+  it('draws up to 10 cards from decks made in the past week', async () => {
+    const res = await alice.post('/api/study/sessions').send({ mode: 'quick' });
+    expect(res.status).toBe(200);
+    expect(res.body.cards.length).toBeGreaterThan(0);
+    expect(res.body.cards.length).toBeLessThanOrEqual(10);
+    // usable by the study UI straight away
+    expect(res.body.cards[0]).toHaveProperty('question');
+    expect(res.body.cards[0]).toHaveProperty('answer');
+    expect(res.body.cards[0]).toHaveProperty('id');
+  });
+
+  it('never picks cards from decks older than a week', async () => {
+    const stale = await alice.post('/api/decks').send({ title: 'Last month' });
+    const staleCard = await alice
+      .post(`/api/decks/${stale.body.deck.id}/cards`)
+      .send({ question: 'Ancient?', answer: 'From an old deck' });
+    // backdate the deck past the window (bypass mongoose timestamps; the id
+    // must be an ObjectId or the filter matches nothing)
+    await Deck.collection.updateOne(
+      { _id: oid(stale.body.deck.id) },
+      { $set: { createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000) } },
+    );
+
+    const res = await alice.post('/api/study/sessions').send({ mode: 'quick' });
+    expect(res.status).toBe(200);
+    expect(res.body.cards.some((c) => c.id === staleCard.body.card.id)).toBe(false);
+  });
+
+  it('returns an empty queue for a student with no recent decks', async () => {
+    const { agent: newcomer } = await registerAgent(ctx, 105);
+    const res = await newcomer.post('/api/study/sessions').send({ mode: 'quick' });
+    expect(res.status).toBe(200);
+    expect(res.body.cards).toHaveLength(0);
+    expect(res.body.session.mode).toBe('quick');
+  });
+});
+
+describe('dashboard feed', () => {
+  it('shows the three most recent decks with counts and a today flag', async () => {
+    const res = await alice.get('/api/dashboard');
+    expect(res.status).toBe(200);
+    expect(res.body.recentDecks.length).toBeGreaterThan(0);
+    expect(res.body.recentDecks.length).toBeLessThanOrEqual(3);
+
+    // newest first, newest one was made during this run (i.e. today)
+    const times = res.body.recentDecks.map((d) => new Date(d.createdAt).getTime());
+    expect([...times].sort((a, b) => b - a)).toEqual(times);
+    expect(res.body.recentDecks[0].createdToday).toBe(true);
+    // hand-made decks have no source document; PDF ones would name the file
+    expect(res.body.recentDecks[0]).toHaveProperty('documentFilename');
+    expect(typeof res.body.recentDecks[0].cardCount).toBe('number');
+  });
+
+  it('ranks this week\u2019s effort against other active students, without leaking who', async () => {
+    // bob studies too, once — so there are two active students to compare
+    const { agent: bob } = await registerAgent(ctx, 106);
+    const deck = await bob.post('/api/decks').send({ title: 'Bob deck' });
+    const card = await bob.post(`/api/decks/${deck.body.deck.id}/cards`).send({ question: 'q', answer: 'a' });
+    await bob.post('/api/reviews').send({ flashcardId: card.body.card.id, rating: 5 });
+
+    const aliceDash = await alice.get('/api/dashboard');
+    expect(aliceDash.body.peer.studentsActive).toBe(2);
+    expect(aliceDash.body.peer.rank).toBe(1);
+    expect(aliceDash.body.peer.percentile).toBe(100); // beat everyone else
+    expect(aliceDash.body.peer.reviewsThisWeek).toBeGreaterThan(1);
+
+    const bobDash = await bob.get('/api/dashboard');
+    expect(bobDash.body.peer.rank).toBe(2);
+    expect(bobDash.body.peer.percentile).toBe(0);
+    expect(bobDash.body.peer.reviewsThisWeek).toBe(1);
+    // counts only — no names, no ids of other students
+    expect(JSON.stringify(bobDash.body.peer)).not.toMatch(/@|alice|user100/i);
+  });
+
+  it('tells a student with no reviews this week that the board is waiting', async () => {
+    const { agent: idle } = await registerAgent(ctx, 107);
+    const res = await idle.get('/api/dashboard');
+    expect(res.body.peer.reviewsThisWeek).toBe(0);
+    expect(res.body.peer.rank).toBeNull();
+    expect(res.body.peer.percentile).toBeNull();
+    expect(res.body.peer.studentsActive).toBeGreaterThanOrEqual(2);
   });
 });

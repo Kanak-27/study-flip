@@ -59,13 +59,30 @@ export function createApp({ sessionStore }) {
   // Stripe calls this server-to-server with a signed payload — no session.
   app.use('/api', stripeWebhookRouter);
 
-  app.use('/api/auth', authRouter);
-
   // Brute-force protection on credential endpoints; generous enough for a
-  // human, useless for a script.
-  const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false });
+  // human, useless for a script. It must be mounted BEFORE the auth router:
+  // a request the router has already answered never reaches middleware
+  // registered after it, so the limiter used to be silently skipped.
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    // reply in the app's error shape, otherwise the client falls back to a
+    // generic "Something went wrong." and the user can't tell they're limited
+    handler: (_req, res) => {
+      res.status(429).json({
+        error: {
+          code: 'rate_limited',
+          message: 'Too many attempts. Please wait a few minutes and try again.',
+        },
+      });
+    },
+  });
   app.use('/api/auth/login', authLimiter);
   app.use('/api/auth/register', authLimiter);
+
+  app.use('/api/auth', authRouter);
 
   // everything below requires a session
   app.use('/api', requireAuth);

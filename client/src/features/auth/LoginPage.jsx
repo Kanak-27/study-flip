@@ -26,7 +26,9 @@ export default function LoginPage() {
   return (
     <AuthCard title="Welcome back">
       <form onSubmit={onSubmit} className="space-y-4">
-        <Field label="Email" type="email" value={email} onChange={setEmail} required />
+        {/* trim as you type: the server trims too, and a pasted trailing
+            space would otherwise make the browser reject the whole submit */}
+        <Field label="Email" type="email" value={email} onChange={(v) => setEmail(v.trim())} required />
         <Field label="Password" type="password" value={password} onChange={setPassword} required />
         {error && <ErrorNote>{error}</ErrorNote>}
         <SubmitButton busy={busy}>Sign in</SubmitButton>
