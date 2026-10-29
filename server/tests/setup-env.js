@@ -8,6 +8,12 @@
 process.env.NODE_ENV = 'test';
 process.env.SESSION_SECRET ??= 'test-secret-at-least-16-chars';
 
+// Config validates MONGO_URI at import time, and test files import config-
+// dependent modules before `beforeAll` starts the in-memory Mongo. A
+// placeholder keeps that import valid; the helper then overwrites it with the
+// memory-server URI and passes it explicitly to connectDb().
+process.env.MONGO_URI ??= 'mongodb://127.0.0.1:27017/studyflip-test';
+
 process.env.CASHFREE_CLIENT_ID ??= '';
 process.env.CASHFREE_CLIENT_SECRET ??= '';
 process.env.CASHFREE_WEBHOOK_SECRET ??= '';
