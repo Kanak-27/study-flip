@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { requireAuth } from '../auth/auth.middleware.js';
 import { wrap } from '../../platform/errors.js';
 import { oid } from '../../platform/oid.js';
 import { Deck } from '../decks/deck.model.js';
@@ -13,7 +12,6 @@ export const analyticsRouter = Router();
 
 analyticsRouter.get(
   '/dashboard',
-  requireAuth,
   wrap(async (req, res) => {
     const userId = req.userId;
     const startOfToday = new Date();

@@ -1,10 +1,14 @@
 import { config } from './platform/config.js';
 import { logger } from './platform/logger.js';
 import { connectDb, disconnectDb } from './platform/db.js';
+import { refreshSettings } from './platform/settings.js';
 import { createApp, createSessionStore } from './app.js';
 
 async function main() {
   await connectDb();
+  // Load admin-editable settings before the first request so plans, signup
+  // gating and the announcement match the database from the start.
+  await refreshSettings();
   const app = createApp({ sessionStore: createSessionStore() });
 
   const server = app.listen(config.PORT, () => {

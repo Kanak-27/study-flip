@@ -2,8 +2,9 @@ import { z } from 'zod';
 import { model, Schema } from 'mongoose';
 import { generateFlashcards } from './ai.gateway.js';
 import { enqueue } from '../../platform/jobs.js';
-import { badRequest, notFound } from '../../platform/errors.js';
+import { badRequest, forbidden, notFound } from '../../platform/errors.js';
 import { logger } from '../../platform/logger.js';
+import { getSettings } from '../../platform/settings.js';
 import { Deck } from '../decks/deck.model.js';
 import { Flashcard } from '../decks/flashcard.model.js';
 
@@ -84,6 +85,12 @@ function dedupe(cards) {
 // --- service ---
 
 export async function startGeneration(userId, documentId) {
+  // Admin kill-switch for the AI provider (outage, runaway spend, abuse).
+  // It pauses new runs only; existing decks and studying keep working.
+  if (!getSettings().generationEnabled) {
+    throw forbidden('AI generation is paused right now. Please try again later.');
+  }
+
   const { Document } = await import('../documents/document.model.js');
   const doc = await Document.findOne({ _id: documentId, userId });
   if (!doc) throw notFound('Document not found.');

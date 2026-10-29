@@ -16,7 +16,7 @@ export function AuthCard({ title, children }) {
   );
 }
 
-export function Field({ label, type = 'text', value, onChange, required, hint }) {
+export function Field({ label, type = 'text', value, onChange, required, hint, ...rest }) {
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
@@ -25,6 +25,7 @@ export function Field({ label, type = 'text', value, onChange, required, hint })
         value={value}
         required={required}
         onChange={(e) => onChange(e.target.value)}
+        {...rest}
         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700"
       />
       {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}

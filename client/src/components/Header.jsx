@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext.jsx';
-import { api } from '../api/client.js';
+import { api, avatarUrl } from '../api/client.js';
 import Tooltip from './Tooltip.jsx';
 
 // Single header for every signed-in page. Sticky so it stays reachable on
@@ -17,6 +17,9 @@ const NAV_ITEMS = [
 
 export default function Header() {
   const { user, logout } = useAuth();
+  const navItems = user.role === 'admin'
+    ? [...NAV_ITEMS, { to: '/admin', label: 'Admin' }]
+    : NAV_ITEMS;
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-canvas/90 backdrop-blur">
@@ -25,8 +28,8 @@ export default function Header() {
           <Link to="/" className="text-xl font-black tracking-tight text-slate-900">
             studyflip<span className="text-forest-800">.</span>
           </Link>
-          <nav className="flex gap-6 text-sm font-medium">
-            {NAV_ITEMS.map((item) => (
+          <nav className="hidden gap-6 text-sm font-medium md:flex">
+            {navItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
@@ -45,17 +48,42 @@ export default function Header() {
 
         <div className="flex items-center gap-3">
           <PlanTag />
-          <span className="hidden text-sm text-slate-600 sm:inline">Hi, {user.name}</span>
+          <NavLink
+            to="/profile"
+            className={({ isActive }) =>
+              `flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                isActive
+                  ? 'border-forest-800 text-forest-800'
+                  : 'border-slate-300 text-slate-700 hover:border-forest-800 hover:text-forest-800'
+              }`
+            }
+            aria-label="Your profile"
+          >
+            <HeaderAvatar user={user} />
+            <span className="hidden sm:inline">Profile</span>
+          </NavLink>
           <button
             onClick={logout}
             aria-label="Sign out"
-            className="rounded-full border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:border-forest-800 hover:text-forest-800"
+            className="hidden rounded-full border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:border-forest-800 hover:text-forest-800 sm:inline"
           >
             Sign out
           </button>
         </div>
       </div>
     </header>
+  );
+}
+
+function HeaderAvatar({ user }) {
+  const url = avatarUrl(user);
+  if (url) {
+    return <img src={url} alt="" className="h-6 w-6 rounded-full border border-slate-200 object-cover" />;
+  }
+  return (
+    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-forest-100 text-xs font-semibold text-forest-800">
+      {(user.name ?? '?').trim().charAt(0).toUpperCase()}
+    </span>
   );
 }
 

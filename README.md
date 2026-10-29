@@ -6,7 +6,9 @@ See `PLAN.md` for the engineering plan.
 
 ## Features
 
-- **Auth** — email/password sessions (argon2 hashes, httpOnly cookies)
+- **Auth** — email/password sessions (argon2 hashes, httpOnly cookies), two-step email-code signup, OTP password reset, optional TOTP two-factor with one-time recovery codes
+- **Profile** — editable name/phone/bio, profile picture, password change, 2FA, sign-out, account deletion
+- **Admin panel** — overview metrics, user search/detail/suspend/roles/2FA reset/delete, AI run and job queue retries, runtime quotas/switches/announcement, audit trail
 - **Documents** — PDF upload (≤10 MB) → background text extraction (unpdf)
 - **AI generation** — chunked extraction → flashcards via Groq (`openai/gpt-oss-120b`), review & save to deck
 - **Decks & cards** — full CRUD, soft deletes, ownership scoping
@@ -40,6 +42,16 @@ processes under one supervisor.
 | `MONGO_URI`         | yes      | e.g. `mongodb://127.0.0.1:27017/studyflip`       |
 | `SESSION_SECRET`    | yes      | ≥16 chars                                        |
 | `CLIENT_ORIGIN`     | no       | default `http://localhost:5173` (CORS + cookies) |
+| `SMTP_HOST`         | prod     | SMTP server for OTP + notices; dev logs codes instead |
+| `SMTP_PORT`         | no       | default `587`                                    |
+| `SMTP_SECURE`       | no       | `true` for implicit TLS (usually port 465)       |
+| `SMTP_USER` / `SMTP_PASS` | no | SMTP credentials                                |
+| `MAIL_FROM`         | no       | default `StudyFlip <no-reply@studyflip.local>`   |
+| `OTP_TTL_MINUTES`   | no       | default `10`                                     |
+| `OTP_MAX_ATTEMPTS`  | no       | default `5`                                      |
+| `OTP_RESEND_SECONDS`| no       | default `60`                                     |
+| `OTP_MAX_SENDS`     | no       | default `5`                                      |
+| `ADMIN_EMAILS`      | no       | comma-separated addresses promoted to admin      |
 | `GROQ_API_KEY`      | no       | Groq key; omit to disable AI generation (graceful) |
 | `GROQ_BASE_URL`     | no       | default `https://api.groq.com/openai/v1`         |
 | `GROQ_MODEL`        | no       | default `openai/gpt-oss-120b`                    |
@@ -56,7 +68,35 @@ processes under one supervisor.
 npm test
 ```
 
-Server tests (80) boot an in-memory MongoDB automatically — no local database needed.
+Server tests (107) boot an in-memory MongoDB automatically — no local database needed.
+`server/tests/setup-env.js` pins the test environment (no SMTP, no billing
+credentials) before any module reads `server/.env`.
+
+## Admin
+
+Promote the first administrator in one of three ways:
+
+```bash
+# 1. email allowlist (applied on signup/sign-in, and on /api/auth/me)
+ADMIN_EMAILS=you@example.com
+
+# 2. promote an existing local account
+npm run make-admin -w server -- you@example.com
+
+# 3. an existing admin can change roles from the Users tab
+```
+
+The `/admin` panel covers overview metrics, user search and drill-down (role,
+suspend/lift, verify email, reset 2FA, delete), failed AI runs and queue jobs,
+runtime quotas (`generationsPerMonth`), kill switches (`signupsEnabled`,
+`generationEnabled`), the app-wide `announcement`, and an audit trail of every
+admin mutation. Prices and provider credentials intentionally stay in env, not
+the database.
+
+In production, configure SMTP: without it, signup and password-reset requests
+return `503 mail_unconfigured` rather than silently failing. In development,
+the API logs the six-digit code and returns it as `devCode` so you can test the
+full flow without a mail server.
 
 ## Deployment
 

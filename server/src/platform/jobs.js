@@ -21,7 +21,7 @@ const jobSchema = new Schema(
 
 jobSchema.index({ status: 1, nextRunAt: 1 });
 
-const Job = model('Job', jobSchema);
+export const Job = model('Job', jobSchema);
 
 // A claimed job is invisible to other workers until this window passes without
 // a heartbeat, at which point it's considered dead and gets reclaimed.

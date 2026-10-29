@@ -15,7 +15,10 @@ import { studyRouter } from './modules/study/study.routes.js';
 import { documentsRouter } from './modules/documents/documents.routes.js';
 import { generationRouter } from './modules/generation/generation.routes.js';
 import { billingRouter, billingPublicRouter } from './modules/billing/billing.routes.js';
-import { requireAuth } from './modules/auth/auth.middleware.js';
+import { profileRouter } from './modules/profile/profile.routes.js';
+import { adminRouter } from './modules/admin/admin.routes.js';
+import { requireAdmin, requireAuth } from './modules/auth/auth.middleware.js';
+import { getSettings } from './platform/settings.js';
 
 // Builds the Express app. Takes the session store as an argument so tests can
 // run against an in-memory Mongo without touching the real config.
@@ -61,10 +64,27 @@ export function createApp({ sessionStore }) {
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
+  // Public, unauthenticated product switches. The register page needs
+  // `signupsEnabled` before it can call the API, and the shell renders the
+  // admin's announcement. No secrets live here.
+  app.get('/api/config', (_req, res) => {
+    const settings = getSettings();
+    res.json({
+      signupsEnabled: settings.signupsEnabled,
+      generationEnabled: settings.generationEnabled,
+      announcement: settings.announcement,
+    });
+  });
+
   // Brute-force protection on credential endpoints; generous enough for a
   // human, useless for a script. It must be mounted BEFORE the auth router:
   // a request the router has already answered never reaches middleware
   // registered after it, so the limiter used to be silently skipped.
+  //
+  // Registration is deliberately NOT on this 30/15min budget: it costs two
+  // requests per human and is already capped per address by the OTP resend
+  // cooldown and send limit. Keeping the budget for password guessing is what
+  // makes it useful.
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 30,
@@ -82,7 +102,7 @@ export function createApp({ sessionStore }) {
     },
   });
   app.use('/api/auth/login', authLimiter);
-  app.use('/api/auth/register', authLimiter);
+  app.use('/api/auth/password', authLimiter);
 
   app.use('/api/auth', authRouter);
 
@@ -94,6 +114,13 @@ export function createApp({ sessionStore }) {
   app.use('/api', documentsRouter);
   app.use('/api', generationRouter);
   app.use('/api', billingRouter);
+  app.use('/api', profileRouter);
+
+  // Admin area: requireAuth has already loaded req.user; this adds the role
+  // check. The router itself owns /admin/* paths.
+  app.use('/api/admin', requireAdmin);
+  app.use('/api', adminRouter);
+
   app.use('/api', apiNotFound);
   app.use(errorHandler);
 

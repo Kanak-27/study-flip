@@ -38,6 +38,18 @@ export function errorHandler(err, req, res, _next) {
     });
     return;
   }
+  // multer throws its own error type. Without this branch an oversized PDF or
+  // avatar would surface as "Something went wrong." with a 500.
+  if (err?.name === 'MulterError') {
+    const message =
+      err.code === 'LIMIT_FILE_SIZE'
+        ? 'That file is too large. Choose a smaller one.'
+        : err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE'
+          ? 'Upload one file at a time in the expected field.'
+          : 'That upload could not be processed.';
+    res.status(400).json({ error: { code: 'bad_request', message } });
+    return;
+  }
   logger.error({ err, path: req.path }, 'unhandled error');
   res.status(500).json({ error: { code: 'internal_error', message: 'Something went wrong.' } });
 }

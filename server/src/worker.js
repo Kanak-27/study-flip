@@ -2,6 +2,7 @@ import { config } from './platform/config.js';
 import { logger } from './platform/logger.js';
 import { connectDb, disconnectDb } from './platform/db.js';
 import { claimNext, complete, fail, reclaimStuck } from './platform/jobs.js';
+import { refreshSettings } from './platform/settings.js';
 import { handleExtract } from './modules/documents/documents.service.js';
 import { handleGenerate } from './modules/generation/generation.service.js';
 
@@ -54,6 +55,8 @@ async function loop() {
 
 async function main() {
   await connectDb();
+  // Keep the shared settings cache warm in case a job handler consults it.
+  await refreshSettings();
   logger.info('worker started');
   const shutdown = async () => {
     running = false;
