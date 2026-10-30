@@ -10,7 +10,8 @@
     "worker": "node src/worker.js",
     "make-admin": "node scripts/make-admin.js",
     "mail:test": "node scripts/test-mail.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "create-admin": "node scripts/create-admin.js"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",

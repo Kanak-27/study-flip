@@ -27,22 +27,22 @@ export default function DashboardPage() {
   const activity = data?.activity ?? [];
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
+    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
       {/* ---- action row ---- */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Your dashboard</h2>
           <p className="mt-1 text-sm text-slate-500">Pick up where you left off.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <Link
             to="/study"
             className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             {due > 0 ? `Study now — ${due} due` : 'Study (nothing due)'}
           </Link>
-          <Tooltip label="Turn a PDF into flashcards with AI." side="bottom">
+          <Tooltip label="Turn a PDF into flashcards with AI." side="bottom" align="right">
             <Link
               to="/upload"
               className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -90,7 +90,7 @@ export default function DashboardPage() {
         </div>
 
         {recent.length === 0 ? (
-          <div className="mt-3 rounded-xl border-2 border-dashed border-slate-200 bg-white p-8 text-center">
+          <div className="mt-3 rounded-xl border-2 border-dashed border-slate-200 bg-white p-6 text-center sm:p-8">
             <p className="text-sm text-slate-500">
               No decks yet — upload a PDF and AI will turn it into flashcards.
             </p>
@@ -105,7 +105,7 @@ export default function DashboardPage() {
                 <div className="flex items-start justify-between gap-2">
                   <Link
                     to={`/decks/${deck.id}`}
-                    className="font-medium leading-snug text-slate-900 hover:text-forest-800"
+                    className="min-w-0 break-words font-medium leading-snug text-slate-900 hover:text-forest-800"
                   >
                     {deck.title}
                   </Link>
@@ -117,7 +117,7 @@ export default function DashboardPage() {
                 </div>
                 <p className="mt-2 flex items-center gap-1.5 truncate text-xs text-slate-500">
                   <DocIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                  <span className="truncate">{deck.documentFilename ?? 'Manual deck'}</span>
+                  <span className="min-w-0 truncate">{deck.documentFilename ?? 'Manual deck'}</span>
                 </p>
                 <p className="mt-auto pt-2 text-xs text-slate-400">
                   {deck.cardCount} card{deck.cardCount === 1 ? '' : 's'}
@@ -175,9 +175,9 @@ function StreakBanner({ stats, activity }) {
   const dots = lastSevenDays(activity);
 
   return (
-    <section className="mt-6 overflow-hidden rounded-2xl bg-gradient-to-br from-forest-700 via-forest-800 to-forest-900 p-6 text-white shadow-lg sm:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-6">
-        <div className="flex items-center gap-5">
+    <section className="mt-6 overflow-hidden rounded-2xl bg-gradient-to-br from-forest-700 via-forest-800 to-forest-900 p-5 text-white shadow-lg sm:p-8">
+      <div className="flex flex-wrap items-center justify-between gap-5 sm:gap-6">
+        <div className="flex items-center gap-4 sm:gap-5">
           <span
             className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20 sm:h-20 sm:w-20 ${
               days > 0 ? 'animate-pulse' : ''
@@ -204,7 +204,7 @@ function StreakBanner({ stats, activity }) {
             </p>
 
             <p className="mt-1 flex items-baseline gap-2">
-              <span className="text-5xl font-black leading-none tracking-tight sm:text-6xl">
+              <span className="text-4xl font-black leading-none tracking-tight sm:text-6xl">
                 {days}
               </span>
               <span className="text-sm font-semibold uppercase tracking-wide text-forest-200">
@@ -220,7 +220,7 @@ function StreakBanner({ stats, activity }) {
           </div>
         </div>
 
-        <ul className="flex gap-2" aria-label="Reviews on each of the last seven days">
+        <ul className="flex gap-1.5 sm:gap-2" aria-label="Reviews on each of the last seven days">
           {dots.map((dot) => (
             <li key={dot.key} className="flex flex-col items-center gap-1">
               <Tooltip
@@ -232,7 +232,7 @@ function StreakBanner({ stats, activity }) {
                 side="top"
               >
                 <span
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-colors ${
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-colors sm:h-9 sm:w-9 ${
                     dot.reviews > 0
                       ? 'bg-amber-400 text-forest-900'
                       : 'bg-white/10 text-forest-200'
@@ -273,7 +273,7 @@ function lastSevenDays(activity) {
 // needs no setup.
 function QuickRevision() {
   return (
-    <section className="mt-6 flex flex-wrap items-center justify-between gap-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-7">
+    <section className="mt-6 flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-6 sm:p-7">
       <div className="flex min-w-0 items-start gap-4">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-forest-100 text-forest-800">
           <BoltIcon className="h-6 w-6" />
@@ -311,7 +311,7 @@ function QuickRevision() {
         </div>
       </div>
 
-      <Link to="/study?mode=quick" className="btn-primary shrink-0">
+      <Link to="/study?mode=quick" className="btn-primary w-full shrink-0 justify-center sm:w-auto">
         <BoltIcon className="h-4 w-4" />
         Start quick revision
       </Link>
@@ -328,7 +328,7 @@ function Standings({ peer, stats }) {
 
   return (
     <section className="mt-6 rounded-2xl border border-forest-800 bg-forest-800 p-5 text-white sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wider text-forest-300">
             This week's standings
@@ -348,7 +348,7 @@ function Standings({ peer, stats }) {
           <p className="mt-1.5 text-lg font-semibold leading-snug">{headline(peer)}</p>
         </div>
 
-        <div className="flex shrink-0 gap-6 text-center">
+        <div className="flex shrink-0 justify-center gap-4 text-center sm:gap-6">
           <Metric
             label="Reviews"
             value={peer.reviewsThisWeek}
@@ -378,7 +378,7 @@ function headline(peer) {
 
 function Metric({ label, value, tip }) {
   return (
-    <Tooltip label={tip} side="bottom">
+    <Tooltip label={tip} side="bottom" align="right">
       <div className="cursor-default rounded-xl bg-forest-700/60 px-3.5 py-2">
         <div className="text-lg font-bold leading-tight">{value}</div>
         <div className="text-[11px] font-medium text-forest-200">{label}</div>
@@ -391,7 +391,7 @@ function Metric({ label, value, tip }) {
 function ActivityChart({ activity }) {
   const max = Math.max(...activity.map((a) => a.reviews), 1);
   return (
-    <div className="mt-4 flex h-40 items-end gap-1">
+    <div className="mt-4 flex h-32 items-end gap-1 sm:h-40">
       {activity.map((day) => (
         <div
           key={day.date}

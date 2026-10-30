@@ -20,6 +20,8 @@
   --animate-open-in: open-in 420ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
   --animate-flip-out: flip-out 440ms cubic-bezier(0.5, 0, 0.85, 0.4) forwards;
   --animate-flip-in: flip-in 560ms cubic-bezier(0.15, 0.85, 0.25, 1) 80ms both;
+  /* Phones/tablets: the same card turns over where it stands — no travel. */
+  --animate-flip-in-place: flip-in-place 420ms cubic-bezier(0.15, 0.85, 0.25, 1) both;
   --animate-pop-in: pop-in 280ms ease-out both;
 
   @keyframes open-in {
@@ -34,9 +36,45 @@
     from { transform: translateX(-5rem) rotateY(105deg); opacity: 0; }
     to { transform: translateX(0) rotateY(0deg); opacity: 1; }
   }
+  @keyframes flip-in-place {
+    from { transform: rotateY(90deg); opacity: 0; }
+    to { transform: rotateY(0deg); opacity: 1; }
+  }
   @keyframes pop-in {
     from { transform: scale(0.94); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    overflow-wrap: break-word;
+    /* Safety net: nothing decorative (rotated study cards, wide charts) may
+       introduce sideways scrolling. `clip` does not create a scroll
+       container, so the sticky header keeps working. */
+    overflow-x: clip;
+  }
+
+  /* iOS Safari zooms the whole page when a focused form control is under
+     16px. Keep taps usable without changing the desktop type scale. */
+  @media (max-width: 639px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+
+  /* Hover tooltips can't be opened on a touch screen anyway, and their
+     (invisible) bubbles still widen the page, so don't render them there. */
+  @media (hover: none) and (pointer: coarse) {
+    .tooltip-bubble {
+      display: none;
+    }
   }
 }
 
@@ -65,6 +103,7 @@
   .animate-open-in,
   .animate-flip-out,
   .animate-flip-in,
+  .animate-flip-in-place,
   .animate-pop-in {
     animation-duration: 1ms;
     animation-delay: 0ms;

@@ -9,7 +9,11 @@ import { api } from '../../api/client.js';
       it shows the answer plus Again / Hard / Easy.
    3. Rating turns the answered card into a solid colour card on the right, and
       the next question opens from the deck on the left.
-   Ratings map to SM-2's scale: Again=1, Hard=3, Easy=5. */
+   Ratings map to SM-2's scale: Again=1, Hard=3, Easy=5.
+
+   Phones and tablets have no room for two side-by-side slots (and the card
+   would end up below the fold), so below 1024px the same card flips in place
+   and disappears as soon as it is graded — the next question takes its spot. */
 
 const RATINGS = [
   { label: 'Again', value: 1, key: '1', btn: 'bg-red-400 text-white hover:bg-red-500', panel: 'border-red-200 bg-red-100 text-red-700', check: 'bg-red-500' },
@@ -20,7 +24,28 @@ const RATINGS = [
 // Must cover the longest flip leg (--animate-flip-in: 560ms + 80ms delay).
 const FLY_MS = 640;
 
+// Matches the `md` breakpoint's big brother: two slots only from laptop width
+// up; phones and tablets get the in-place flip.
+const COMPACT_QUERY = '(max-width: 1023px)';
+
+function useCompactStudy() {
+  const [compact, setCompact] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(COMPACT_QUERY).matches,
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia(COMPACT_QUERY);
+    const onChange = (event) => setCompact(event.matches);
+    setCompact(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
+  return compact;
+}
+
 export default function StudyPage() {
+  const compact = useCompactStudy();
   const [searchParams] = useSearchParams();
   const deckIdParam = searchParams.get('deckId');
   // /study?mode=quick runs a quick-revision session: 10 random cards from
@@ -78,6 +103,11 @@ export default function StudyPage() {
 
   function flip() {
     if (!card || flipped || flying) return;
+    if (compact) {
+      // Same card, same spot: the answer turns over in place.
+      setFlipped(true);
+      return;
+    }
     setFlying(true);
     setFlipped(true);
     clearTimeout(flyTimer.current);
@@ -90,9 +120,16 @@ export default function StudyPage() {
     const rating = RATINGS.find((r) => r.value === value);
     try {
       const res = await api('/api/reviews', { method: 'POST', body: { flashcardId: card.id, rating: value } });
-      setMarked({ rating, logId: res.reviewLogId });
-      setFlipped(false);
       setAnswered((n) => n + 1);
+      setFlipped(false);
+      // Phones/tablets: grading removes the card at once — no colour card, no
+      // change-your-mind panel, just the next question in the same spot.
+      if (compact) {
+        setMarked(null);
+        setIndex((i) => i + 1);
+        return;
+      }
+      setMarked({ rating, logId: res.reviewLogId });
       // On the last card, let the colour card linger before the wrap-up screen.
       const last = index + 1 >= total;
       if (last) {
@@ -147,7 +184,7 @@ export default function StudyPage() {
   // (Quick revision skips the picker entirely — it picks its own cards.)
   if (!quick && !chosenId) {
     return (
-      <div className="mx-auto max-w-5xl px-6 py-10">
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
         <h2 className="text-xl font-semibold text-slate-900">What do you want to study?</h2>
         <p className="mt-1 text-sm text-slate-500">Pick a deck to open a study session.</p>
 
@@ -189,7 +226,7 @@ export default function StudyPage() {
 
   if (sessionError) {
     return (
-      <div className="mx-auto max-w-2xl px-6 py-16 text-center">
+      <div className="mx-auto max-w-2xl px-4 py-12 text-center sm:px-6 sm:py-16">
         <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
           {sessionError}
         </p>
@@ -213,7 +250,7 @@ export default function StudyPage() {
   // quick-revision window. Say which, rather than showing an empty session.
   if (total === 0) {
     return (
-      <div className="mx-auto max-w-2xl px-6 py-16 text-center">
+      <div className="mx-auto max-w-2xl px-4 py-12 text-center sm:px-6 sm:py-16">
         <h2 className="text-2xl font-semibold text-slate-900">
           {quick ? 'Nothing to revise yet' : 'No cards due right now'}
         </h2>
@@ -234,7 +271,7 @@ export default function StudyPage() {
 
   if (done) {
     return (
-      <div className="mx-auto max-w-2xl px-6 py-16 text-center">
+      <div className="mx-auto max-w-2xl px-4 py-12 text-center sm:px-6 sm:py-16">
         <h2 className="text-2xl font-semibold text-slate-900">Session complete 🎉</h2>
         <p className="mt-2 text-sm text-slate-500">
           You reviewed {answered} card{answered === 1 ? '' : 's'}.
@@ -254,8 +291,8 @@ export default function StudyPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <div className="flex items-center justify-between text-sm text-slate-500">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
         <div className="flex items-center gap-2">
           {quick && (
             <span className="rounded-full bg-forest-100 px-2.5 py-0.5 text-xs font-semibold text-forest-800">
@@ -283,42 +320,66 @@ export default function StudyPage() {
         </p>
       )}
 
-      <div className="mt-10 grid gap-8 md:grid-cols-2 md:gap-12">
-        {/* LEFT — the deck. Open question card tilts out of a fanned stack. */}
-        <div className="relative mx-auto min-h-[22rem] w-full max-w-sm [perspective:1500px] md:min-h-[24rem]">
-          <DeckStack />
-          {(flipped || flying) && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-b from-forest-50 to-white shadow-lg">
-              <CardsIcon className="h-10 w-10 text-forest-300" />
-              <span className="mt-3 text-lg font-black tracking-tight text-forest-300">
-                studyflip<span className="text-forest-400">.</span>
-              </span>
-            </div>
-          )}
-          {!flipped && card && <OpenCard key={`q-${index}`} card={card} animation="animate-open-in" onFlip={flip} />}
-          {flying && card && <OpenCard card={card} animation="animate-flip-out" onFlip={flip} />}
-        </div>
-
-        {/* RIGHT — the answer slot. Placeholder, then the flipped card, then the
-            colour result that lingers until the next flip covers it. */}
-        <div className="relative mx-auto min-h-[22rem] w-full max-w-sm [perspective:1500px] md:min-h-[24rem]">
-          {marked && (!flipped || flying) && (
-            <MarkedCard key={`m-${answered}`} rating={marked.rating} onRevise={revise} />
-          )}
-          {flipped && card && (
+      {compact ? (
+        /* ONE CARD, ONE SPOT. The question turns over on its own axis and the
+           answered card is removed as soon as it is graded. */
+        <div className="relative mx-auto mt-8 min-h-[20rem] w-full max-w-sm [perspective:1500px] sm:min-h-[24rem]">
+          {flipped && card ? (
             <AnswerCard
               key={`a-${index}`}
               card={card}
-              animation={flying ? 'animate-flip-in' : ''}
+              animation="animate-flip-in-place"
               onRate={rate}
             />
-          )}
-          {!flipped && !marked && <Placeholder />}
+          ) : card ? (
+            <OpenCard
+              key={`q-${index}`}
+              card={card}
+              animation="animate-open-in"
+              onFlip={flip}
+            />
+          ) : null}
         </div>
-      </div>
+      ) : (
+        <div className="mt-8 grid gap-6 sm:mt-10 sm:gap-8 md:grid-cols-2 md:gap-12">
+          {/* LEFT — the deck. Open question card tilts out of a fanned stack. */}
+          <div className="relative mx-auto min-h-[18rem] w-full max-w-sm [perspective:1500px] sm:min-h-[22rem] md:min-h-[24rem]">
+            <DeckStack />
+            {(flipped || flying) && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-b from-forest-50 to-white shadow-lg">
+                <CardsIcon className="h-10 w-10 text-forest-300" />
+                <span className="mt-3 text-lg font-black tracking-tight text-forest-300">
+                  studyflip<span className="text-forest-400">.</span>
+                </span>
+              </div>
+            )}
+            {!flipped && card && <OpenCard key={`q-${index}`} card={card} animation="animate-open-in" onFlip={flip} />}
+            {flying && card && <OpenCard card={card} animation="animate-flip-out" onFlip={flip} />}
+          </div>
+
+          {/* RIGHT — the answer slot. Placeholder, then the flipped card, then the
+              colour result that lingers until the next flip covers it. */}
+          <div className="relative mx-auto min-h-[18rem] w-full max-w-sm [perspective:1500px] sm:min-h-[22rem] md:min-h-[24rem]">
+            {marked && (!flipped || flying) && (
+              <MarkedCard key={`m-${answered}`} rating={marked.rating} onRevise={revise} />
+            )}
+            {flipped && card && (
+              <AnswerCard
+                key={`a-${index}`}
+                card={card}
+                animation={flying ? 'animate-flip-in' : ''}
+                onRate={rate}
+              />
+            )}
+            {!flipped && !marked && <Placeholder />}
+          </div>
+        </div>
+      )}
 
       <p className="mt-8 text-center text-xs text-slate-400">
-        Space flips the card · 1 = Again, 2 = Hard, 3 = Easy
+        {compact
+          ? 'Tap the card to flip · then choose Again, Hard or Easy.'
+          : 'Space flips the card · 1 = Again, 2 = Hard, 3 = Easy'}
       </p>
     </div>
   );
@@ -348,17 +409,19 @@ function OpenCard({ card, animation, onFlip }) {
       onClick={onFlip}
       onKeyDown={(e) => e.key === 'Enter' && onFlip()}
       aria-label="Question showing. Activate to reveal the answer."
-      className={`absolute inset-0 z-30 flex cursor-pointer select-none flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-xl focus:outline-none focus:ring-2 focus:ring-forest-600 ${animation}`}
+      className={`absolute inset-0 z-30 flex cursor-pointer select-none flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-xl focus:outline-none focus:ring-2 focus:ring-forest-600 sm:p-6 ${animation}`}
     >
       <div className="flex items-center justify-between">
         <span className="rounded-full bg-forest-50 px-3 py-1 text-xs font-semibold text-forest-700">Question</span>
         <BookmarkIcon className="h-5 w-5 text-slate-300" />
       </div>
       <div className="flex flex-1 items-center justify-center px-2">
-        <p className="text-center text-xl font-semibold leading-snug text-slate-900">{card.question}</p>
+        <p className="break-words text-center text-lg font-semibold leading-snug text-slate-900 sm:text-xl">
+          {card.question}
+        </p>
       </div>
       <div className="flex justify-center">
-        <span className="inline-flex items-center gap-2 rounded-full bg-forest-800 px-6 py-3 text-sm font-medium text-white shadow-md">
+        <span className="inline-flex items-center gap-2 rounded-full bg-forest-800 px-5 py-2.5 text-sm font-medium text-white shadow-md sm:px-6 sm:py-3">
           <RefreshIcon className="h-4 w-4" />
           Flip Card
         </span>
@@ -372,7 +435,7 @@ function OpenCard({ card, animation, onFlip }) {
    out — and it's set small and plain because it's reading material. */
 function AnswerCard({ card, animation, onRate }) {
   return (
-    <div className={`absolute inset-0 z-30 flex flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-xl ${animation}`}>
+    <div className={`absolute inset-0 z-30 flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-xl sm:p-6 ${animation}`}>
       <div className="flex items-center justify-between">
         <span className="rounded-full bg-forest-100 px-3 py-1 text-xs font-semibold text-forest-800">Answer</span>
         <BookmarkIcon className="h-5 w-5 text-slate-300" />
@@ -388,7 +451,7 @@ function AnswerCard({ card, animation, onRate }) {
           <button
             key={r.value}
             onClick={() => onRate(r.value)}
-            className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition-colors ${r.btn}`}
+            className={`whitespace-nowrap rounded-full px-3 py-2 text-xs font-semibold shadow-sm transition-colors sm:px-4 sm:text-sm ${r.btn}`}
           >
             {r.label}
             <span className="ml-1.5 text-[10px] opacity-70">{r.key}</span>
@@ -408,7 +471,7 @@ function MarkedCard({ rating, onRevise }) {
     <div className="absolute inset-0 z-20 animate-pop-in" aria-live="polite">
       <div className={`absolute inset-0 translate-x-2 -translate-y-2 rounded-2xl border opacity-60 ${rating.panel}`} />
       <div className={`absolute inset-0 translate-x-1 -translate-y-1 rounded-2xl border opacity-80 ${rating.panel}`} />
-      <div className={`absolute inset-0 flex flex-col items-center justify-center rounded-2xl border p-6 shadow-lg ${rating.panel}`}>
+      <div className={`absolute inset-0 flex flex-col items-center justify-center rounded-2xl border p-4 shadow-lg sm:p-6 ${rating.panel}`}>
         <span className={`flex h-12 w-12 items-center justify-center rounded-full ${rating.check}`}>
           <CheckIcon className="h-6 w-6 text-white" />
         </span>

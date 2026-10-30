@@ -11,11 +11,11 @@ export default function LandingPage() {
       {/* Top bar: wordmark, in-page nav, auth actions — mirrors the app
           header so the transition after sign-up feels continuous. */}
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-canvas/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
           <Link to="/" className="text-xl font-black tracking-tight">
             studyflip<span className="text-forest-800">.</span>
           </Link>
-          <nav className="hidden gap-8 text-sm font-medium text-slate-600 sm:flex">
+          <nav className="hidden gap-6 text-sm font-medium text-slate-600 sm:flex lg:gap-8">
             <a href="#how" className="border-b-2 border-transparent pb-0.5 hover:border-forest-800 hover:text-forest-800">
               How it works
             </a>
@@ -46,12 +46,12 @@ export default function LandingPage() {
       </header>
 
       {/* Hero: oversized headline left, floating flashcard stack right */}
-      <section className="mx-auto grid max-w-6xl items-center gap-12 px-6 pb-20 pt-16 lg:grid-cols-2 lg:pt-24">
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-14 pt-12 sm:px-6 sm:pb-20 sm:pt-16 lg:grid-cols-2 lg:pt-24">
         <div>
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-forest-600">
             Spaced repetition, simplified
           </p>
-          <h1 className="text-6xl font-black leading-[0.95] tracking-tight sm:text-7xl">
+          <h1 className="text-5xl font-black leading-[0.95] tracking-tight sm:text-6xl lg:text-7xl">
             STUDY
             <br />
             SMARTER<span className="text-forest-800">.</span>
@@ -60,12 +60,12 @@ export default function LandingPage() {
             Turn any PDF into flashcards in minutes. StudyFlip schedules every review at the
             moment you're about to forget — so less time rereading, more time remembering.
           </p>
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Link to="/register" className="btn-primary">
+          <div className="mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <Link to="/register" className="btn-primary justify-center">
               Start learning
               <span aria-hidden>→</span>
             </Link>
-            <a href="#how" className="btn-secondary">
+            <a href="#how" className="btn-secondary justify-center">
               See how it works
             </a>
           </div>
@@ -99,7 +99,7 @@ export default function LandingPage() {
       {/* Feature row: three columns, icon + title + line — the image's
           Feeding/Light/Care strip, in our vocabulary */}
       <section id="how" className="border-y border-slate-200 bg-white">
-        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 sm:grid-cols-3">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:grid-cols-3 sm:px-6 sm:py-16">
           <Feature
             icon="📄"
             title="Upload"
@@ -119,8 +119,8 @@ export default function LandingPage() {
       </section>
 
       {/* Features list */}
-      <section id="features" className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="text-3xl font-black tracking-tight">
+      <section id="features" className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
+        <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
           Everything you need to actually stick<span className="text-forest-800">.</span>
         </h2>
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -135,11 +135,11 @@ export default function LandingPage() {
 
       {/* Pricing */}
       <section id="pricing" className="border-t border-slate-200 bg-white">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <h2 className="text-3xl font-black tracking-tight">Simple pricing</h2>
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
+          <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Simple pricing</h2>
           <p className="mt-2 text-slate-600">The learning loop is free forever. Pay only for AI volume.</p>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:max-w-3xl">
-            <div className="card p-8">
+            <div className="card p-6 sm:p-8">
               <h3 className="text-lg font-semibold">Free</h3>
               <p className="mt-2 text-3xl font-black">
                 $0<span className="text-sm font-medium text-slate-500">/month</span>
@@ -154,10 +154,10 @@ export default function LandingPage() {
                 Start free
               </Link>
             </div>
-            <div className="card border-forest-800 p-8 ring-1 ring-forest-800">
+            <div className="card border-forest-800 p-6 ring-1 ring-forest-800 sm:p-8">
               <h3 className="text-lg font-semibold">
                 Premium
-                <span className="ml-2 rounded-full bg-forest-800 px-2 py-0.5 text-xs font-medium text-white">
+                <span className="ml-2 inline-block rounded-full bg-forest-800 px-2 py-0.5 text-xs font-medium text-white">
                   Most popular
                 </span>
               </h3>
@@ -180,7 +180,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-slate-200">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 text-sm text-slate-500 sm:flex-row">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-slate-500 sm:flex-row sm:px-6">
           <span className="font-black tracking-tight text-slate-900">
             studyflip<span className="text-forest-800">.</span>
           </span>

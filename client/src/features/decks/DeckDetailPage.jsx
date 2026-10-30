@@ -128,24 +128,24 @@ export default function DeckDetailPage() {
   }
 
   if (!deck) {
-    return <p className="mx-auto max-w-5xl px-6 py-10 text-sm text-slate-500">{error ?? 'Loading…'}</p>;
+    return <p className="mx-auto max-w-5xl px-4 py-8 text-sm text-slate-500 sm:px-6 sm:py-10">{error ?? 'Loading…'}</p>;
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <Link to="/decks" className="text-sm text-slate-400 hover:text-slate-600">
             ← All decks
           </Link>
           {renaming ? (
-            <form onSubmit={saveRename} className="mt-1 flex items-center gap-2">
+            <form onSubmit={saveRename} className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
               <input
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
                 autoFocus
                 maxLength={200}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700"
+                className="min-w-0 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700 sm:flex-1"
               />
               <button
                 type="submit"
@@ -163,8 +163,8 @@ export default function DeckDetailPage() {
               </button>
             </form>
           ) : (
-            <div className="mt-1 flex items-center gap-2">
-              <h2 className="text-xl font-semibold text-slate-900">{deck.title}</h2>
+            <div className="mt-1 flex items-start gap-2">
+              <h2 className="min-w-0 break-words text-xl font-semibold text-slate-900">{deck.title}</h2>
               <Tooltip label="Rename this deck so it's easy to remember." side="bottom">
                 <button
                   onClick={() => {
@@ -181,7 +181,7 @@ export default function DeckDetailPage() {
           )}
           {deck.subject && <p className="text-sm text-slate-500">{deck.subject}</p>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link
             to={`/study?deckId=${deckId}`}
             className="rounded-md bg-forest-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-forest-700"
@@ -203,7 +203,7 @@ export default function DeckDetailPage() {
         </p>
       )}
 
-      <form onSubmit={addCard} className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
+      <form onSubmit={addCard} className="mt-8 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
         <h3 className="font-medium text-slate-900">Add a card</h3>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <textarea
@@ -266,10 +266,10 @@ export default function DeckDetailPage() {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-medium text-slate-900">{card.question}</p>
-                    <p className="mt-1 text-sm text-slate-600">{card.answer}</p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                  <div className="min-w-0">
+                    <p className="break-words font-medium text-slate-900">{card.question}</p>
+                    <p className="mt-1 break-words text-sm text-slate-600">{card.answer}</p>
                   </div>
                   <div className="flex shrink-0 gap-2 text-xs">
                     <button
@@ -294,7 +294,7 @@ export default function DeckDetailPage() {
 
       {/* Only decks born from a PDF can be topped up from it. */}
       {deck.documentId && (
-        <section className="mt-10 rounded-xl border border-slate-200 bg-white p-5">
+        <section className="mt-10 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
           <h3 className="font-medium text-slate-900">Need more cards?</h3>
           <p className="mt-1 text-sm text-slate-500">
             Not enough cards from this PDF? Generate another batch from the same source. Cards already

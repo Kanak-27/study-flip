@@ -18,7 +18,7 @@ export default function AdminPage() {
   const [error, setError] = useState(null);
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
+    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Admin</h1>
         <p className="mt-1 text-sm text-slate-500">
@@ -26,7 +26,7 @@ export default function AdminPage() {
         </p>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-1 border-b border-slate-200">
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200">
         {TABS.map((item) => (
           <button
             key={item.id}
@@ -35,7 +35,7 @@ export default function AdminPage() {
               setTab(item.id);
               setError(null);
             }}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+            className={`-mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
               tab === item.id
                 ? 'border-forest-800 text-forest-800'
                 : 'border-transparent text-slate-500 hover:text-forest-800'
@@ -62,7 +62,7 @@ export default function AdminPage() {
 
 function Card({ title, description, actions, children, className = '' }) {
   return (
-    <section className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
+    <section className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${className}`}>
       {(title || actions) && (
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -84,7 +84,7 @@ function Note({ kind = 'ok', children, className = '' }) {
       : kind === 'warn'
         ? 'bg-amber-50 text-amber-800'
         : 'bg-forest-50 text-forest-800';
-  return <p className={`rounded-md px-3 py-2 text-sm ${tone} ${className}`}>{children}</p>;
+  return <p className={`break-words rounded-md px-3 py-2 text-sm ${tone} ${className}`}>{children}</p>;
 }
 
 function Button({ children, variant = 'primary', className = '', ...rest }) {
@@ -170,7 +170,7 @@ function Loading() {
 function Pagination({ page, pages, onPage }) {
   if (!pages || pages <= 1) return null;
   return (
-    <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
       <span>
         Page {page} of {pages}
       </span>
@@ -261,7 +261,7 @@ function Overview({ onError }) {
         </Card>
 
         <Card title="Environment" description="What is configured on this server." className="lg:col-span-2">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
             <Row label="Mode" value={environment.nodeEnv} />
             <Row label="Email" value={environment.mailConfigured ? 'SMTP configured' : 'Not configured'} bad={!environment.mailConfigured} />
             <Row label="Billing" value={environment.billingConfigured ? environment.billingMode : 'Disabled'} bad={!environment.billingConfigured} />
@@ -276,7 +276,7 @@ function Overview({ onError }) {
           {signupsByDay.length === 0 ? (
             <p className="text-sm text-slate-500">No signups in this window.</p>
           ) : (
-            <div className="flex h-40 items-end gap-1.5">
+            <div className="flex h-32 items-end gap-1 sm:h-40 sm:gap-1.5">
               {signupsByDay.map((row) => (
                 <div key={row.date} className="group relative flex flex-1 flex-col items-center justify-end">
                   <span className="mb-1 hidden text-xs text-slate-500 group-hover:block">{row.count}</span>
@@ -312,7 +312,7 @@ function Overview({ onError }) {
 
 function Row({ label, value, bad, wide }) {
   return (
-    <div className={wide ? 'col-span-2' : ''}>
+    <div className={wide ? 'col-span-2 min-w-0' : 'min-w-0'}>
       <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</dt>
       <dd className={`mt-0.5 break-words ${bad ? 'font-medium text-red-700' : 'text-slate-700'}`}>{value}</dd>
     </div>
@@ -426,7 +426,7 @@ function Users({ onError }) {
           <p className="text-sm text-slate-500">No accounts match those filters.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
                 <tr>
                   <th className="py-2 pr-4 font-medium">Account</th>
@@ -575,7 +575,7 @@ function UserDetail({ id, onClose, onChanged, onError }) {
             <Row label="AI this month" value={data.usage.generationsThisMonth} />
           </dl>
 
-          <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
             {[
               ['Documents', data.counts.documents],
               ['Decks', data.counts.decks],
@@ -661,8 +661,8 @@ function UserDetail({ id, onClose, onChanged, onError }) {
               <ul className="space-y-1.5 text-sm">
                 {data.recentRuns.map((run) => (
                   <li key={run.id} className="flex items-center justify-between gap-2 rounded border border-slate-100 px-2 py-1.5">
-                    <span className="truncate text-slate-600">{run.documentFilename || shortId(run.id)}</span>
-                    <span className="flex items-center gap-2">
+                    <span className="min-w-0 truncate text-slate-600">{run.documentFilename || shortId(run.id)}</span>
+                    <span className="flex shrink-0 items-center gap-2">
                       <Badge tone={run.status === 'failed' ? 'red' : run.status === 'completed' ? 'green' : 'amber'}>
                         {run.status}
                       </Badge>
@@ -752,7 +752,7 @@ function Runs({ onError }) {
         <p className="text-sm text-slate-500">No runs match.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="py-2 pr-4 font-medium">User</th>
@@ -872,7 +872,7 @@ function Jobs({ onError }) {
         <p className="text-sm text-slate-500">No jobs match.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[820px] text-left text-sm">
             <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="py-2 pr-4 font-medium">Type</th>
@@ -1043,7 +1043,7 @@ function SettingsPanel({ onError }) {
 
       {environment && (
         <Card title="Environment" description="Read-only; change these in server environment variables.">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
             <Row label="Mode" value={environment.nodeEnv} />
             <Row label="Email" value={environment.mailConfigured ? 'SMTP configured' : 'Not configured'} bad={!environment.mailConfigured} />
             <Row label="Billing" value={environment.billingConfigured ? environment.billingMode : 'Disabled'} bad={!environment.billingConfigured} />
@@ -1096,7 +1096,7 @@ function Audit({ onError }) {
           value={action}
           onChange={setAction}
           placeholder="e.g. user.update"
-          className="w-56"
+          className="w-full sm:w-56"
         />
         <Button type="submit">Filter</Button>
         {applied && (
@@ -1120,7 +1120,7 @@ function Audit({ onError }) {
         <p className="text-sm text-slate-500">No audit entries.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[820px] text-left text-sm">
             <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="py-2 pr-4 font-medium">When</th>

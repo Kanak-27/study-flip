@@ -64,20 +64,20 @@ export default function DecksPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-slate-900">Your decks</h2>
         <Link to="/upload" className="rounded-md bg-forest-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-forest-700">
           Generate from PDF
         </Link>
       </div>
 
-      <form onSubmit={createDeck} className="mt-6 flex gap-2">
+      <form onSubmit={createDeck} className="mt-6 flex flex-col gap-2 sm:flex-row">
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="New deck title…"
-          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700"
+          className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700"
         />
         <button
           type="submit"
@@ -138,8 +138,8 @@ export default function DecksPage() {
                 </form>
               ) : (
                 <>
-                  <div className="flex items-start justify-between gap-2">
-                    <Link to={`/decks/${deck.id}`} className="font-medium text-slate-900 hover:text-forest-800">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <Link to={`/decks/${deck.id}`} className="min-w-0 break-words font-medium text-slate-900 hover:text-forest-800">
                       {deck.title}
                     </Link>
                     <div className="flex shrink-0 items-center gap-2 text-xs">

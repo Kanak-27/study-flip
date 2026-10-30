@@ -201,7 +201,7 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <h2 className="text-xl font-semibold text-slate-900">Upload &amp; generate</h2>
@@ -216,7 +216,7 @@ export default function UploadPage() {
       </div>
 
       <label
-        className={`mt-6 flex flex-col items-center rounded-xl border-2 border-dashed border-slate-300 bg-white p-10 text-center ${
+        className={`mt-6 flex flex-col items-center rounded-xl border-2 border-dashed border-slate-300 bg-white p-6 text-center sm:p-10 ${
           uploading ? 'pointer-events-none opacity-70' : 'cursor-pointer hover:border-forest-600'
         }`}
       >
@@ -245,7 +245,7 @@ export default function UploadPage() {
       ) : (
         <ul className="mt-8 divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
           {documents.map((doc) => (
-            <li key={doc.id} className="flex items-center justify-between gap-4 p-4">
+            <li key={doc.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="min-w-0">
                 <p className="truncate font-medium text-slate-900">{doc.filename}</p>
                 <p className="mt-0.5 text-xs text-slate-500">
@@ -253,7 +253,7 @@ export default function UploadPage() {
                   {doc.error && ` · ${doc.error}`}
                 </p>
               </div>
-              <div className="flex shrink-0 gap-2">
+              <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                 {doc.status === 'extracted' && (
                   <button
                     onClick={() => generate(doc)}
@@ -293,7 +293,7 @@ export default function UploadPage() {
           ref={resultsRef}
           aria-live="polite"
           aria-busy={busyDocId ? 'true' : 'false'}
-          className="mt-10 scroll-mt-6 rounded-xl border border-slate-200 bg-white p-6"
+          className="mt-10 scroll-mt-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-6"
         >
           {busyDocId ? (
             <div className="flex items-start gap-3">
@@ -332,9 +332,9 @@ export default function UploadPage() {
                           onChange={() => toggle(i)}
                           className="mt-1 h-4 w-4 rounded border-slate-300 text-forest-800 focus:ring-forest-700"
                         />
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">{card.question}</p>
-                          <p className="mt-0.5 text-sm text-slate-600">{card.answer}</p>
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-medium text-slate-900">{card.question}</p>
+                          <p className="mt-0.5 break-words text-sm text-slate-600">{card.answer}</p>
                         </div>
                       </li>
                     ))}
@@ -345,12 +345,12 @@ export default function UploadPage() {
                       value={deckTitle}
                       onChange={(e) => setDeckTitle(e.target.value)}
                       placeholder="Deck title"
-                      className="flex-1 min-w-48 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700"
+                      className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700"
                     />
                     <button
                       type="submit"
                       disabled={saving || selected.size === 0 || !deckTitle.trim()}
-                      className="rounded-md bg-forest-800 px-4 py-2 text-sm font-medium text-white hover:bg-forest-700 disabled:opacity-60"
+                      className="w-full rounded-md bg-forest-800 px-4 py-2 text-sm font-medium text-white hover:bg-forest-700 disabled:opacity-60 sm:w-auto"
                     >
                       {saving ? 'Saving…' : `Save ${selected.size} card${selected.size === 1 ? '' : 's'} to deck`}
                     </button>

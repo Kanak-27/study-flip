@@ -77,7 +77,7 @@ export default function PlansPage() {
 
   if (error) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-10">
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
         <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
         </p>
@@ -90,7 +90,7 @@ export default function PlansPage() {
   const isCancelled = subscription?.status === 'canceled';
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
+    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">Plans &amp; pricing</h2>
@@ -100,7 +100,7 @@ export default function PlansPage() {
           </p>
         </div>
         {subInfo && (
-          <p className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
+          <p className="max-w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
             Current plan: {subInfo.plan.name}
             {' · '}
             {subInfo.used} / {subInfo.plan.limits.generationsPerMonth} generations used this month
@@ -166,7 +166,7 @@ export default function PlansPage() {
             return (
               <section
                 key={plan.id}
-                className={`relative flex flex-col rounded-2xl border bg-white p-6 ${
+                className={`relative flex flex-col rounded-2xl border bg-white p-5 sm:p-6 ${
                   isPremium ? 'border-forest-700 shadow-lg' : 'border-slate-200'
                 }`}
               >
@@ -176,7 +176,7 @@ export default function PlansPage() {
                   </span>
                 )}
 
-                <div className="flex items-baseline justify-between">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <h3 className="text-lg font-semibold text-slate-900">{plan.name}</h3>
                   <p className="text-2xl font-bold text-slate-900">
                     {symbol}
@@ -196,7 +196,7 @@ export default function PlansPage() {
 
                 <dl className="mt-5 space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
                   {Object.entries(plan.limits).map(([key, value]) => (
-                    <div key={key} className="flex items-center justify-between">
+                    <div key={key} className="flex items-center justify-between gap-3">
                       <dt className="flex items-center gap-1.5 text-slate-500">
                         {LIMIT_LABELS[key] ?? key}
                         <Tooltip label={limitHint(key, value)} side="top">
@@ -235,7 +235,7 @@ export default function PlansPage() {
         </div>
       )}
 
-      <p className="mt-8 text-xs text-slate-400">
+      <p className="mt-8 text-xs leading-relaxed text-slate-400">
         Quotas reset at the start of each calendar month. Cancelling stops future charges; Premium
         stays active until the period you already paid for ends.
       </p>

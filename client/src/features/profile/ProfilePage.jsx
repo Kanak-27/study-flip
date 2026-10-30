@@ -19,8 +19,8 @@ export default function ProfilePage() {
   }, []);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
-      <div className="mb-8 flex items-end justify-between">
+    <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Your profile</h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -55,7 +55,7 @@ export default function ProfilePage() {
 
 function Card({ title, description, children }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="mb-4">
         <h2 className="text-base font-semibold text-slate-900">{title}</h2>
         {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
@@ -187,11 +187,11 @@ function IdentityCard({ user, account, updateUser }) {
   const plan = account?.plan;
   return (
     <Card title="Account" description="Your picture, address and current plan.">
-      <div className="flex flex-wrap items-center gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
         <Avatar user={user} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-medium text-slate-900">{user.name}</p>
-          <p className="truncate text-sm text-slate-500">{user.email}</p>
+          <p className="break-words text-lg font-medium text-slate-900">{user.name}</p>
+          <p className="break-all text-sm text-slate-500">{user.email}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
             <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
               {user.role === 'admin' ? 'Administrator' : 'Student'}
@@ -211,7 +211,7 @@ function IdentityCard({ user, account, updateUser }) {
             )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           <input
             ref={fileRef}
             type="file"
@@ -487,8 +487,8 @@ function TwoFactorCard({ user, updateUser }) {
               </code>
             </div>
           </div>
-          <form onSubmit={enable} className="flex flex-wrap items-end gap-3">
-            <div className="w-48">
+          <form onSubmit={enable} className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="w-full sm:w-48">
               <Input
                 label="6-digit code"
                 value={code}
@@ -589,7 +589,7 @@ function DangerCard({ onDeleted }) {
   };
 
   return (
-    <section className="rounded-xl border border-red-200 bg-white p-6 shadow-sm">
+    <section className="rounded-xl border border-red-200 bg-white p-5 shadow-sm sm:p-6">
       <h2 className="text-base font-semibold text-red-700">Delete account</h2>
       <p className="mt-1 text-sm text-slate-500">
         Permanently removes your decks, cards, documents, review history and subscription
@@ -610,7 +610,7 @@ function DangerCard({ onDeleted }) {
             autoComplete="current-password"
           />
           {error && <Note kind="error">{error}</Note>}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button type="submit" variant="danger" disabled={busy}>
               {busy ? 'Deleting…' : 'Yes, delete everything'}
             </Button>
