@@ -98,6 +98,16 @@ return `503 mail_unconfigured` rather than silently failing. In development,
 the API logs the six-digit code and returns it as `devCode` so you can test the
 full flow without a mail server.
 
+Check the credentials without creating an account:
+
+```bash
+npm run mail:test -w server -- you@example.com
+```
+
+For Gmail, use a 16-character App Password (2-Step Verification is required),
+not the normal account password. Pasting it with the usual spaces is fine; the
+mailer strips whitespace for `smtp.gmail.com`.
+
 ## Deployment
 
 - **API + worker**: `npm start` runs both under `scripts/with-worker.js`; they

@@ -9,6 +9,7 @@
     "start": "node scripts/with-worker.js --no-watch",
     "worker": "node src/worker.js",
     "make-admin": "node scripts/make-admin.js",
+    "mail:test": "node scripts/test-mail.js",
     "test": "vitest run"
   },
   "dependencies": {

@@ -36,16 +36,34 @@ export function resetMailSender() {
   testSender = null;
 }
 
+// Google shows app passwords as four groups of four characters. People often
+// paste them with the spaces, which Gmail's SMTP endpoint does not accept.
+function smtpPassword() {
+  const pass = config.SMTP_PASS ?? '';
+  return config.SMTP_HOST?.toLowerCase() === 'smtp.gmail.com'
+    ? pass.replace(/\s+/g, '')
+    : pass;
+}
+
 function getTransport() {
   if (!transport) {
     transport = nodemailer.createTransport({
       host: config.SMTP_HOST,
       port: config.SMTP_PORT,
       secure: config.SMTP_SECURE,
-      auth: config.SMTP_USER ? { user: config.SMTP_USER, pass: config.SMTP_PASS } : undefined,
+      auth: config.SMTP_USER
+        ? { user: config.SMTP_USER, pass: smtpPassword() }
+        : undefined,
     });
   }
   return transport;
+}
+
+// Used by `npm run mail:test` so an operator can check the credentials without
+// creating an account or waiting for an OTP.
+export async function verifyMailTransport() {
+  assertMailReady();
+  await getTransport().verify();
 }
 
 export async function sendMail({ to, subject, text, html }) {
@@ -67,13 +85,24 @@ export async function sendMail({ to, subject, text, html }) {
     return { logged: true };
   }
 
-  return getTransport().sendMail({
-    from: config.MAIL_FROM,
-    to,
-    subject,
-    text,
-    html,
-  });
+  try {
+    return await getTransport().sendMail({
+      from: config.MAIL_FROM,
+      to,
+      subject,
+      text,
+      html,
+    });
+  } catch (err) {
+    // Keep the provider's real error in the logs, but don't leak SMTP details
+    // (or turn a mail outage into a generic "something went wrong" 500).
+    logger.error({ err, to, subject }, 'email delivery failed');
+    throw new AppError(
+      502,
+      'mail_delivery_failed',
+      'We could not send that email right now. Please try again in a few minutes.',
+    );
+  }
 }
 
 const BRAND = 'StudyFlip';
