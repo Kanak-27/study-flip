@@ -14,6 +14,9 @@ const documentSchema = new Schema(
     fileBuffer: { type: Buffer, select: false },
     extractedText: { type: String, default: '' },
     error: { type: String },
+    // Soft delete: the upload page shows a 30-second undo section where the
+    // document used to be, so deletion must be reversible for a while.
+    deletedAt: { type: Date },
   },
   { timestamps: true },
 );

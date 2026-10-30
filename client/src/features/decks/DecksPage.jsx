@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import Tooltip from '../../components/Tooltip.jsx';
+import UndoSection, { useUndoableDeletes, withUndoSections } from '../../components/UndoSection.jsx';
 
 export default function DecksPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [decks, setDecks] = useState(null);
   const [error, setError] = useState(null);
   const [title, setTitle] = useState('');
@@ -11,6 +14,29 @@ export default function DecksPage() {
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [savingRename, setSavingRename] = useState(false);
+  const undo = useUndoableDeletes();
+
+  // A deck deleted on its own detail page lands here — the list is where the
+  // deck used to live, so its undo section belongs here. Hold it until the
+  // list has loaded, then put the section back at the deck's old position.
+  const [incomingUndo, setIncomingUndo] = useState(() => location.state?.undoDeck ?? null);
+  const appliedIncoming = useRef(false);
+
+  useEffect(() => {
+    if (location.state?.undoDeck) {
+      // Consume the state so a back/forward remount can't re-add a section
+      // whose 30-second window has already closed.
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.state, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (!incomingUndo || decks === null || appliedIncoming.current) return;
+    appliedIncoming.current = true;
+    const index = decks.filter((d) => d.createdAt > incomingUndo.createdAt).length;
+    undo.mark(incomingUndo.id, incomingUndo, index);
+    setIncomingUndo(null);
+  }, [incomingUndo, decks, undo]);
 
   const load = useCallback(() => {
     api('/api/decks')
@@ -38,8 +64,34 @@ export default function DecksPage() {
 
   async function deleteDeck(deck) {
     if (!window.confirm(`Delete “${deck.title}” and its ${deck.cardCount} cards?`)) return;
-    await api(`/api/decks/${deck.id}`, { method: 'DELETE' });
-    load();
+    try {
+      await api(`/api/decks/${deck.id}`, { method: 'DELETE' });
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
+    // Drop it from the list and leave an undo section in its place for 30s.
+    const index = decks.findIndex((d) => d.id === deck.id);
+    undo.mark(deck.id, deck, index);
+    setDecks((list) => list.filter((d) => d.id !== deck.id));
+  }
+
+  async function undoDelete(id) {
+    try {
+      await api(`/api/decks/${id}/restore`, { method: 'POST' });
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
+    const entry = undo.entries[id];
+    undo.clear(id);
+    if (entry) {
+      setDecks((list) => {
+        const next = [...list];
+        next.splice(Math.min(entry.index, next.length), 0, entry.item);
+        return next;
+      });
+    }
   }
 
   // Rename in place — a title you recognise is the whole point of a list.
@@ -96,13 +148,22 @@ export default function DecksPage() {
 
       {decks === null ? (
         <p className="mt-8 text-sm text-slate-500">Loading…</p>
-      ) : decks.length === 0 ? (
+      ) : withUndoSections(decks, undo.entries).length === 0 ? (
         <p className="mt-8 text-sm text-slate-500">
           No decks yet. Create one above, or upload a PDF to generate flashcards.
         </p>
       ) : (
         <ul className="mt-6 grid gap-4 sm:grid-cols-2">
-          {decks.map((deck) => (
+          {withUndoSections(decks, undo.entries).map((deck) =>
+            deck.undoSection ? (
+              <li key={deck.id} className="rounded-xl border-2 border-dashed border-slate-300 bg-white p-5">
+                <UndoSection
+                  label={`Deck “${deck.title}”`}
+                  secondsLeft={undo.secondsLeft(deck.id)}
+                  onUndo={() => undoDelete(deck.id)}
+                />
+              </li>
+            ) : (
             <li key={deck.id} className="rounded-xl border border-slate-200 bg-white p-5">
               {renamingId === deck.id ? (
                 <form
@@ -167,7 +228,8 @@ export default function DecksPage() {
                 </>
               )}
             </li>
-          ))}
+            ),
+          )}
         </ul>
       )}
     </div>

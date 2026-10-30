@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { createDocument, requireDocument, MAX_UPLOAD_BYTES } from './documents.service.js';
+import { createDocument, requireDocument, restoreDocument, MAX_UPLOAD_BYTES } from './documents.service.js';
 import { wrap, badRequest } from '../../platform/errors.js';
 import { oid } from '../../platform/oid.js';
 
@@ -39,7 +39,7 @@ documentsRouter.get(
   wrap(async (req, res) => {
     const { Document } = await import('./document.model.js');
     const { GenerationRun } = await import('../generation/generation.service.js');
-    const documents = await Document.find({ userId: req.userId }).sort({ createdAt: -1 });
+    const documents = await Document.find({ userId: req.userId, deletedAt: null }).sort({ createdAt: -1 });
 
     // Attach the most recent generation run to each document so the UI can
     // offer "View" for a doc that's already been turned into cards, instead
@@ -77,11 +77,23 @@ documentsRouter.get(
   }),
 );
 
+// Soft delete: the upload page shows a 30-second undo section in the
+// document's place, and undo calls the restore route below. Nothing is
+// physically removed here.
 documentsRouter.delete(
   '/documents/:id',
   wrap(async (req, res) => {
     const doc = await requireDocument(req.userId, req.params.id);
-    await doc.deleteOne();
+    doc.deletedAt = new Date();
+    await doc.save();
     res.json({ ok: true });
+  }),
+);
+
+documentsRouter.post(
+  '/documents/:id/restore',
+  wrap(async (req, res) => {
+    const doc = await restoreDocument(req.userId, req.params.id);
+    res.json({ document: doc });
   }),
 );

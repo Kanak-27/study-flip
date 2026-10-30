@@ -317,3 +317,61 @@ describe('dashboard feed', () => {
     expect(res.body.peer.studentsActive).toBeGreaterThanOrEqual(2);
   });
 });
+
+// The upload/decks UI shows a 30-second "Undo" section wherever something
+// was deleted; these cover the restore endpoints behind it.
+describe('undo deletion (restore)', () => {
+  it('restores a deleted deck with its cards, but not cards deleted earlier', async () => {
+    const deck = await alice.post('/api/decks').send({ title: 'Undoable deck' });
+    const deckId = deck.body.deck.id;
+    const kept = await alice.post(`/api/decks/${deckId}/cards`).send({ question: 'q1', answer: 'a1' });
+    const removedFirst = await alice.post(`/api/decks/${deckId}/cards`).send({ question: 'q2', answer: 'a2' });
+
+    await alice.delete(`/api/cards/${removedFirst.body.card.id}`);
+    // the deck's own deletion must land strictly later, or this card would be
+    // swept back in with it
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    expect((await alice.delete(`/api/decks/${deckId}`)).status).toBe(200);
+
+    // hidden everywhere while the undo section is showing
+    expect((await alice.get(`/api/decks/${deckId}`)).status).toBe(404);
+    expect((await alice.get('/api/decks')).body.decks.find((d) => d.id === deckId)).toBeUndefined();
+
+    expect((await alice.post(`/api/decks/${deckId}/restore`)).status).toBe(200);
+
+    expect((await alice.get(`/api/decks/${deckId}`)).status).toBe(200);
+    const cardIds = (await alice.get(`/api/decks/${deckId}/cards`)).body.cards.map((c) => c.id);
+    expect(cardIds).toContain(kept.body.card.id);
+    expect(cardIds).not.toContain(removedFirst.body.card.id);
+  });
+
+  it('restores an individually deleted card', async () => {
+    const deck = await alice.post('/api/decks').send({ title: 'Card undo' });
+    const deckId = deck.body.deck.id;
+    const card = await alice.post(`/api/decks/${deckId}/cards`).send({ question: 'q', answer: 'a' });
+    await alice.delete(`/api/cards/${card.body.card.id}`);
+    expect((await alice.get(`/api/decks/${deckId}/cards`)).body.cards).toHaveLength(0);
+
+    expect((await alice.post(`/api/cards/${card.body.card.id}/restore`)).status).toBe(200);
+    const cardIds = (await alice.get(`/api/decks/${deckId}/cards`)).body.cards.map((c) => c.id);
+    expect(cardIds).toContain(card.body.card.id);
+  });
+
+  it('refuses to restore a live row, a card in a deleted deck, or someone else\u2019s', async () => {
+    const { agent: mallory } = await registerAgent(ctx, 108);
+
+    // a deck that is still there has nothing to restore
+    const live = await alice.post('/api/decks').send({ title: 'Still here' });
+    expect((await alice.post(`/api/decks/${live.body.deck.id}/restore`)).status).toBe(404);
+
+    // a card cannot come back into a deck that is itself deleted
+    const doomed = await alice.post('/api/decks').send({ title: 'Doomed' });
+    const card = await alice.post(`/api/decks/${doomed.body.deck.id}/cards`).send({ question: 'q', answer: 'a' });
+    await alice.delete(`/api/decks/${doomed.body.deck.id}`);
+    expect((await alice.post(`/api/cards/${card.body.card.id}/restore`)).status).toBe(404);
+
+    // ownership scoping: restore 404s across users, like every other endpoint
+    expect((await mallory.post(`/api/decks/${live.body.deck.id}/restore`)).status).toBe(404);
+    expect((await mallory.post(`/api/cards/${card.body.card.id}/restore`)).status).toBe(404);
+  });
+});

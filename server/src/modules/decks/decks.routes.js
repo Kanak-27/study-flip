@@ -8,11 +8,13 @@ import {
   createDeck,
   updateDeck,
   softDeleteDeck,
+  restoreDeck,
   listCards,
   requireCard,
   createCard,
   updateCard,
   softDeleteCard,
+  restoreCard,
 } from './decks.service.js';
 import { parseBody } from '../../platform/validation.js';
 import { wrap } from '../../platform/errors.js';
@@ -57,6 +59,16 @@ decksRouter
     }),
   );
 
+// Undo endpoints: the client shows a 30-second undo section where the
+// deleted item used to be, and these put it back (deck + its cards, or a
+// single card). Unknown or already-live ids 404.
+decksRouter.post(
+  '/decks/:id/restore',
+  wrap(async (req, res) => {
+    res.json({ deck: await restoreDeck(req.userId, req.params.id) });
+  }),
+);
+
 decksRouter
   .route('/decks/:id/cards')
   .get(
@@ -90,3 +102,10 @@ decksRouter
       res.json({ ok: true });
     }),
   );
+
+decksRouter.post(
+  '/cards/:id/restore',
+  wrap(async (req, res) => {
+    res.json({ card: await restoreCard(req.userId, req.params.id) });
+  }),
+);

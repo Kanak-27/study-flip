@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
-import CheckoutButton from './CheckoutButton.jsx';
 
-// Shows the current plan and usage; "Upgrade" starts a Cashfree subscription
-// checkout. Degrades with a note when billing isn't configured on the server.
+// Shows the current plan and usage; "Upgrade" leads to the pricing page so
+// people compare plans there instead of being dropped into a payment flow
+// from the upload page. Degrades with a note when billing isn't configured
+// on the server.
 export default function UpgradeCard() {
   const [info, setInfo] = useState(null);
   const [error, setError] = useState(null);
@@ -36,10 +38,12 @@ export default function UpgradeCard() {
           </p>
         </div>
         {!isPremium && (
-          <CheckoutButton
-            label="Upgrade"
-            buttonClassName="rounded-md bg-forest-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-forest-700 disabled:opacity-60"
-          />
+          <Link
+            to="/plans"
+            className="rounded-md bg-forest-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-forest-700"
+          >
+            Upgrade
+          </Link>
         )}
       </div>
     </div>

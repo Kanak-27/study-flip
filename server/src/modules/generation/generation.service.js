@@ -92,7 +92,7 @@ export async function startGeneration(userId, documentId) {
   }
 
   const { Document } = await import('../documents/document.model.js');
-  const doc = await Document.findOne({ _id: documentId, userId });
+  const doc = await Document.findOne({ _id: documentId, userId, deletedAt: null });
   if (!doc) throw notFound('Document not found.');
   if (doc.status !== 'extracted') {
     throw badRequest(doc.status === 'failed' ? 'This document failed to process.' : 'This document is still being processed.');

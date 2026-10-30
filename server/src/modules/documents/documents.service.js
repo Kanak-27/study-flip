@@ -22,8 +22,19 @@ export async function createDocument(userId, { filename, size, buffer }) {
 }
 
 export async function requireDocument(userId, docId) {
-  const doc = await Document.findOne({ _id: docId, userId });
+  const doc = await Document.findOne({ _id: docId, userId, deletedAt: null });
   if (!doc) throw notFound('Document not found.');
+  return doc;
+}
+
+// Undo target for the upload page's 30-second undo section. Only a deleted
+// document can be restored; anything else 404s so the endpoint can't be used
+// to poke at live rows.
+export async function restoreDocument(userId, docId) {
+  const doc = await Document.findOne({ _id: docId, userId, deletedAt: { $ne: null } });
+  if (!doc) throw notFound('Document not found.');
+  doc.deletedAt = null;
+  await doc.save();
   return doc;
 }
 

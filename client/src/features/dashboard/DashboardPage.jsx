@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import Tooltip from '../../components/Tooltip.jsx';
 
-// The dashboard answers three questions in one screen: how's my habit
-// doing (streak), what should I do right now (quick revision), and how do
-// I compare (standings). Raw counters (due, totals, recall, reviews today)
-// were dropped on request — they added noise without changing behaviour.
+// The dashboard answers two questions in one screen: how's my habit doing
+// (streak), and what should I do right now (quick revision). Raw counters
+// (due, totals, recall, reviews today) were dropped on request — they added
+// noise without changing behaviour. Standings and the 30-day chart were
+// dropped for the same reason.
 export default function DashboardPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -22,7 +23,6 @@ export default function DashboardPage() {
   }, []);
 
   const stats = data?.stats;
-  const peer = data?.peer;
   const recent = data?.recentDecks ?? [];
   const activity = data?.activity ?? [];
 
@@ -64,9 +64,6 @@ export default function DashboardPage() {
 
       {/* ---- quick revision, explained ---- */}
       <QuickRevision />
-
-      {/* ---- standings: the scoreboard ---- */}
-      <Standings peer={peer} stats={stats} />
 
       {/* ---- what I made recently ---- */}
       <section className="mt-8">
@@ -127,38 +124,6 @@ export default function DashboardPage() {
           </ul>
         )}
       </section>
-
-      {/* ---- the numbers ---- */}
-      <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 lg:col-span-2">
-          <div className="flex items-center gap-2">
-            <h3 className="font-medium text-slate-900">Last 30 days</h3>
-            <Tooltip
-              label="Reviews per day. Taller bars mean more cards graded; the shade shows how many you recalled."
-              side="bottom"
-            >
-              <button
-                type="button"
-                aria-label="About this chart"
-                className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold text-slate-400 hover:border-forest-600 hover:text-forest-700"
-              >
-                ?
-              </button>
-            </Tooltip>
-          </div>
-          {activity.length ? (
-            <ActivityChart activity={activity} />
-          ) : (
-            <p className="mt-3 text-sm text-slate-500">
-              No reviews yet.{' '}
-              <Link to="/study?mode=quick" className="text-forest-800 hover:underline">
-                Start a quick revision
-              </Link>{' '}
-              to build your streak.
-            </p>
-          )}
-        </div>
-      </div>
     </main>
   );
 }
@@ -316,91 +281,6 @@ function QuickRevision() {
         Start quick revision
       </Link>
     </section>
-  );
-}
-
-// The scoreboard: rank among students who studied this week, plus the
-// numbers that move it. Counts only — we never show who the others are.
-function Standings({ peer, stats }) {
-  if (!peer || !stats) {
-    return <div className="mt-6 h-24 animate-pulse rounded-2xl bg-slate-100" />;
-  }
-
-  return (
-    <section className="mt-6 rounded-2xl border border-forest-800 bg-forest-800 p-5 text-white sm:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wider text-forest-300">
-            This week's standings
-            <Tooltip
-              label="Ranks your review count against every other student who reviewed in the last 7 days. Only counts are compared — nobody sees who anyone is."
-              side="bottom"
-            >
-              <button
-                type="button"
-                aria-label="How standings are calculated"
-                className="ml-2 inline-flex h-4 w-4 items-center justify-center rounded-full border border-forest-500 text-[10px] font-bold text-forest-200 hover:border-forest-300 hover:text-white"
-              >
-                ?
-              </button>
-            </Tooltip>
-          </p>
-          <p className="mt-1.5 text-lg font-semibold leading-snug">{headline(peer)}</p>
-        </div>
-
-        <div className="flex shrink-0 justify-center gap-4 text-center sm:gap-6">
-          <Metric
-            label="Reviews"
-            value={peer.reviewsThisWeek}
-            tip="Cards graded in the last 7 days."
-          />
-          <Metric
-            label="Streak"
-            value={`${stats.streakDays}d`}
-            tip="Consecutive days with at least one review."
-          />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function headline(peer) {
-  if (peer.rank === null) {
-    return peer.studentsActive > 0
-      ? `No reviews yet this week — ${peer.studentsActive} student${peer.studentsActive === 1 ? ' is' : 's are'} already studying. A quick revision puts you on the board.`
-      : 'Nobody has reviewed this week yet — be the first on the board.';
-  }
-  if (peer.studentsActive < 2) return "You're the only one on the board this week — set the pace.";
-  if (peer.percentile >= 50) return `You're ahead of ${peer.percentile}% of students this week — keep the streak alive.`;
-  return `Rank #${peer.rank} of ${peer.studentsActive} this week — ${peer.percentile}% of students are ahead. Two sessions closes the gap.`;
-}
-
-function Metric({ label, value, tip }) {
-  return (
-    <Tooltip label={tip} side="bottom" align="right">
-      <div className="cursor-default rounded-xl bg-forest-700/60 px-3.5 py-2">
-        <div className="text-lg font-bold leading-tight">{value}</div>
-        <div className="text-[11px] font-medium text-forest-200">{label}</div>
-      </div>
-    </Tooltip>
-  );
-}
-
-// Simple CSS bar chart — no charting dependency for six numbers a week.
-function ActivityChart({ activity }) {
-  const max = Math.max(...activity.map((a) => a.reviews), 1);
-  return (
-    <div className="mt-4 flex h-32 items-end gap-1 sm:h-40">
-      {activity.map((day) => (
-        <div
-          key={day.date}
-          title={`${day.date}: ${day.reviews} reviews, ${day.recalled} recalled`}
-          className="group flex-1 rounded-t bg-forest-400 transition-colors hover:bg-forest-600"
-          style={{ height: `${Math.max((day.reviews / max) * 100, 4)}%` }}
-        />
-      ))}
-    </div>
   );
 }
 

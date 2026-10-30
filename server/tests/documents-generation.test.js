@@ -224,3 +224,34 @@ describe('subscription quotas', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// Deleting a document on the upload page shows a 30-second undo section in
+// its place, so the delete is a soft delete with a restore endpoint.
+describe('undo document deletion', () => {
+  it('hides a deleted document everywhere and restores it on undo', async () => {
+    const upload = await uploadPdf(alice, makeTestPdf('Undo this document.'), 'undo.pdf');
+    const id = upload.body.document.id;
+
+    expect((await alice.delete(`/api/documents/${id}`)).status).toBe(200);
+    expect((await alice.get('/api/documents')).body.documents.find((d) => d.id === id)).toBeUndefined();
+    expect((await alice.get(`/api/documents/${id}`)).status).toBe(404);
+    // a deleted document can't be sent to the AI either
+    expect((await alice.post(`/api/documents/${id}/generate`)).status).toBe(404);
+
+    expect((await alice.post(`/api/documents/${id}/restore`)).status).toBe(200);
+    expect((await alice.get('/api/documents')).body.documents.find((d) => d.id === id)).toBeTruthy();
+    expect((await alice.get(`/api/documents/${id}`)).status).toBe(200);
+  });
+
+  it('only restores deleted documents, and only for their owner', async () => {
+    const { agent: mallory } = await registerAgent(ctx, 204);
+
+    const live = await uploadPdf(alice, makeTestPdf('Still here.'), 'live.pdf');
+    expect((await alice.post(`/api/documents/${live.body.document.id}/restore`)).status).toBe(404);
+
+    const gone = await uploadPdf(alice, makeTestPdf('Mine to undo.'), 'mine.pdf');
+    await alice.delete(`/api/documents/${gone.body.document.id}`);
+    expect((await mallory.post(`/api/documents/${gone.body.document.id}/restore`)).status).toBe(404);
+    expect((await mallory.delete(`/api/documents/${gone.body.document.id}`)).status).toBe(404);
+  });
+});

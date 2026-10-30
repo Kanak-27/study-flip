@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import Spinner from '../../components/Spinner.jsx';
 import Tooltip from '../../components/Tooltip.jsx';
+import UndoSection, { useUndoableDeletes, withUndoSections } from '../../components/UndoSection.jsx';
 
 const POLL_MS = 2000;
 // Longest we'll block the button waiting on a run before telling the user it
@@ -25,6 +26,7 @@ export default function DeckDetailPage() {
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [savingRename, setSavingRename] = useState(false);
+  const undo = useUndoableDeletes();
 
   const load = useCallback(() => {
     Promise.all([api(`/api/decks/${deckId}`), api(`/api/decks/${deckId}/cards`)])
@@ -66,9 +68,35 @@ export default function DeckDetailPage() {
     }
   }
 
-  async function deleteCard(cardId) {
-    await api(`/api/cards/${cardId}`, { method: 'DELETE' });
-    load();
+  async function deleteCard(card) {
+    try {
+      await api(`/api/cards/${card.id}`, { method: 'DELETE' });
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
+    // Leave an undo section where the card was, for 30 seconds.
+    const index = cards.findIndex((c) => c.id === card.id);
+    undo.mark(card.id, card, index);
+    setCards((list) => list.filter((c) => c.id !== card.id));
+  }
+
+  async function undoDeleteCard(id) {
+    try {
+      await api(`/api/cards/${id}/restore`, { method: 'POST' });
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
+    const entry = undo.entries[id];
+    undo.clear(id);
+    if (entry) {
+      setCards((list) => {
+        const next = [...list];
+        next.splice(Math.min(entry.index, next.length), 0, entry.item);
+        return next;
+      });
+    }
   }
 
   // Rename the deck without leaving it — titles are how you find things again.
@@ -90,8 +118,15 @@ export default function DeckDetailPage() {
 
   async function deleteDeck() {
     if (!window.confirm(`Delete “${deck.title}” and all its cards?`)) return;
-    await api(`/api/decks/${deckId}`, { method: 'DELETE' });
-    navigate('/decks');
+    try {
+      await api(`/api/decks/${deckId}`, { method: 'DELETE' });
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
+    // The deck list is where the deck used to live: hand its undo section
+    // over so it appears among the other decks.
+    navigate('/decks', { state: { undoDeck: deck } });
   }
 
   // Kick off a fresh generation run against the deck's source PDF, then poll
@@ -232,11 +267,22 @@ export default function DeckDetailPage() {
 
       {cards === null ? (
         <p className="mt-8 text-sm text-slate-500">Loading cards…</p>
-      ) : cards.length === 0 ? (
+      ) : withUndoSections(cards, undo.entries).length === 0 ? (
         <p className="mt-8 text-sm text-slate-500">No cards yet — add one above.</p>
       ) : (
         <ul className="mt-8 divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
-          {cards.map((card) => (
+          {withUndoSections(cards, undo.entries).map((card) =>
+            card.undoSection ? (
+              <li key={card.id} className="px-4 py-3">
+                <div className="rounded-lg border-2 border-dashed border-slate-300 px-4 py-3">
+                  <UndoSection
+                    label="Card"
+                    secondsLeft={undo.secondsLeft(card.id)}
+                    onUndo={() => undoDeleteCard(card.id)}
+                  />
+                </div>
+              </li>
+            ) : (
             <li key={card.id} className="p-4">
               {editingId === card.id ? (
                 <div className="grid gap-2">
@@ -281,14 +327,15 @@ export default function DeckDetailPage() {
                     >
                       Edit
                     </button>
-                    <button onClick={() => deleteCard(card.id)} className="text-slate-400 hover:text-red-600">
+                    <button onClick={() => deleteCard(card)} className="text-slate-400 hover:text-red-600">
                       Delete
                     </button>
                   </div>
                 </div>
               )}
             </li>
-          )          )}
+            ),
+          )}
         </ul>
       )}
 

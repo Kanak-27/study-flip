@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { api, apiUpload } from '../../api/client.js';
 import Spinner from '../../components/Spinner.jsx';
 import UpgradeCard from '../billing/UpgradeCard.jsx';
+import UndoSection, { useUndoableDeletes, withUndoSections } from '../../components/UndoSection.jsx';
 
-// Upload → extract → generate → review → save-to-deck. The worker does the
-// heavy lifting; this page polls status and renders the run's cards.
+// Upload → extract → generate → deck. The worker does the heavy lifting;
+// this page polls status, then shows the deck the cards landed in.
 const POLL_MS = 2000;
 // Longest we'll block the button waiting on a run before telling the user it
 // may still be going. Real runs finish well inside this.
@@ -16,7 +17,6 @@ const GENERATION_TIMEOUT_MS = 90_000;
 const TRANSIENT_STATUSES = new Set(['pending', 'extracting']);
 
 export default function UploadPage() {
-  const navigate = useNavigate();
   const [documents, setDocuments] = useState(null);
   const [error, setError] = useState(null);
   const [busyDocId, setBusyDocId] = useState(null);
@@ -25,10 +25,11 @@ export default function UploadPage() {
   const [busyMode, setBusyMode] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadName, setUploadName] = useState('');
-  const [run, setRun] = useState(null); // { runId, cards, status, error }
-  const [selected, setSelected] = useState(new Set());
-  const [deckTitle, setDeckTitle] = useState('');
-  const [saving, setSaving] = useState(false);
+  // { runId, cards, status, error, deck, deckError } — deck is prepared
+  // automatically as soon as the cards exist, so the panel's job is to point
+  // at it, not to ask the user to build one.
+  const [run, setRun] = useState(null);
+  const undo = useUndoableDeletes();
   const fileRef = useRef(null);
   // The progress panel and the finished cards share this spot, below the
   // document list. It is off-screen on short windows, so anything that starts
@@ -123,16 +124,7 @@ export default function UploadPage() {
         setError('Generation is taking longer than expected. It may still finish in the background — check back in a minute.');
         await load();
       } else {
-        const cards = current.cards ?? [];
-        setRun({
-          runId: current.id,
-          status: current.status,
-          error: current.error,
-          cards,
-          documentId: doc.id,
-        });
-        setSelected(new Set(cards.map((_, i) => i)));
-        setDeckTitle(doc.filename.replace(/\.pdf$/i, ''));
+        await showRun(doc, current);
         // Refresh the list so this row immediately offers "View N cards"
         // instead of looking untouched until the next page load.
         load();
@@ -146,8 +138,61 @@ export default function UploadPage() {
     }
   }
 
-  // A doc that already produced cards gets its last run back so the user can
-  // review and re-save it without spending another AI credit.
+  // The deck exists before the user reads the cards: no review-then-save step,
+  // just a button to open what was made. A first run creates the deck from the
+  // PDF's name; a later run folds its cards into that same deck, deduplicated
+  // server-side, so one PDF means one deck.
+  async function ensureDeck(doc, runId) {
+    const { decks } = await api('/api/decks');
+    const existing = decks.find((d) => d.documentId === doc.id);
+    if (existing) {
+      const result = await api(`/api/decks/${existing.id}/cards/from-run`, {
+        method: 'POST',
+        body: { runId },
+      });
+      return {
+        id: existing.id,
+        title: existing.title,
+        cardCount: existing.cardCount + result.added,
+        added: result.added,
+        skipped: result.skipped,
+      };
+    }
+    const title = doc.filename.replace(/\.pdf$/i, '');
+    const { deck, cardCount } = await api('/api/decks/from-run', {
+      method: 'POST',
+      body: { runId, title },
+    });
+    return { id: deck.id, title: deck.title ?? title, cardCount, added: cardCount, skipped: 0 };
+  }
+
+  // Puts a finished run on screen with its deck already prepared. A failed or
+  // empty run shows as-is; a deck that couldn't be prepared is reported next
+  // to the cards rather than swallowed.
+  async function showRun(doc, current) {
+    const cards = current.cards ?? [];
+    const next = {
+      runId: current.id,
+      status: current.status,
+      error: current.error,
+      cards,
+      documentId: doc.id,
+      deck: null,
+      deckError: null,
+    };
+    if (cards.length > 0 && (current.status === 'completed' || current.status === 'partial')) {
+      try {
+        next.deck = await ensureDeck(doc, current.id);
+      } catch (err) {
+        next.deckError = `Cards are ready, but the deck couldn't be prepared: ${err.message}`;
+      }
+    }
+    setRun(next);
+  }
+
+  // A doc that already produced cards gets its last run back — with the deck
+  // that run produced (or with a deck prepared now, for runs that predate
+  // automatic decks) — without spending another AI credit.
   async function viewRun(doc) {
     if (!doc.lastRun) return;
     setBusyDocId(doc.id);
@@ -157,16 +202,7 @@ export default function UploadPage() {
     revealResults();
     try {
       const { run: current } = await api(`/api/generation-runs/${doc.lastRun.runId}`);
-      const cards = current.cards ?? [];
-      setRun({
-        runId: current.id,
-        status: current.status,
-        error: current.error,
-        cards,
-        documentId: doc.id,
-      });
-      setSelected(new Set(cards.map((_, i) => i)));
-      setDeckTitle(doc.filename.replace(/\.pdf$/i, ''));
+      await showRun(doc, current);
       revealResults();
     } catch (err) {
       setError(err.message);
@@ -176,27 +212,35 @@ export default function UploadPage() {
     }
   }
 
-  function toggle(i) {
-    setSelected((s) => {
-      const next = new Set(s);
-      next.has(i) ? next.delete(i) : next.add(i);
-      return next;
-    });
-  }
-
-  async function saveToDeck(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
+  // Deleting a document leaves an undo section in its place for 30 seconds;
+  // the API call has already happened, so Undo calls the restore endpoint.
+  async function deleteDocument(doc) {
     try {
-      const { deck } = await api('/api/decks/from-run', {
-        method: 'POST',
-        body: { runId: run.runId, title: deckTitle.trim(), cardIndexes: [...selected].sort((a, b) => a - b) },
-      });
-      navigate(`/decks/${deck.id}`);
+      await api(`/api/documents/${doc.id}`, { method: 'DELETE' });
     } catch (err) {
       setError(err.message);
-      setSaving(false);
+      return;
+    }
+    const index = documents.findIndex((d) => d.id === doc.id);
+    undo.mark(doc.id, doc, index);
+    setDocuments((list) => list.filter((d) => d.id !== doc.id));
+  }
+
+  async function undoDeleteDocument(id) {
+    try {
+      await api(`/api/documents/${id}/restore`, { method: 'POST' });
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
+    const entry = undo.entries[id];
+    undo.clear(id);
+    if (entry) {
+      setDocuments((list) => {
+        const next = [...list];
+        next.splice(Math.min(entry.index, next.length), 0, entry.item);
+        return next;
+      });
     }
   }
 
@@ -240,11 +284,22 @@ export default function UploadPage() {
 
       {documents === null ? (
         <p className="mt-8 text-sm text-slate-500">Loading…</p>
-      ) : documents.length === 0 ? (
+      ) : withUndoSections(documents, undo.entries).length === 0 ? (
         <p className="mt-8 text-sm text-slate-500">No documents yet.</p>
       ) : (
         <ul className="mt-8 divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
-          {documents.map((doc) => (
+          {withUndoSections(documents, undo.entries).map((doc) =>
+            doc.undoSection ? (
+              <li key={doc.id} className="px-4 py-3">
+                <div className="rounded-lg border-2 border-dashed border-slate-300 px-4 py-3">
+                  <UndoSection
+                    label={`Document “${doc.filename}”`}
+                    secondsLeft={undo.secondsLeft(doc.id)}
+                    onUndo={() => undoDeleteDocument(doc.id)}
+                  />
+                </div>
+              </li>
+            ) : (
             <li key={doc.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="min-w-0">
                 <p className="truncate font-medium text-slate-900">{doc.filename}</p>
@@ -274,17 +329,15 @@ export default function UploadPage() {
                   </button>
                 )}
                 <button
-                  onClick={async () => {
-                    await api(`/api/documents/${doc.id}`, { method: 'DELETE' });
-                    load();
-                  }}
+                  onClick={() => deleteDocument(doc)}
                   className="text-xs text-slate-400 hover:text-red-600"
                 >
                   Delete
                 </button>
               </div>
             </li>
-          ))}
+            ),
+          )}
         </ul>
       )}
 
@@ -323,38 +376,42 @@ export default function UploadPage() {
                 <p className="mt-3 text-sm text-slate-500">No cards were generated from this document.</p>
               ) : (
                 <>
+                  {run.deck && (
+                    <div className="mt-4 flex flex-col gap-3 rounded-xl border border-forest-200 bg-forest-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-forest-900">
+                          Your deck “{run.deck.title}” is ready — {run.deck.cardCount} card
+                          {run.deck.cardCount === 1 ? '' : 's'}.
+                        </p>
+                        <p className="mt-0.5 text-xs text-forest-700">
+                          Saved automatically. Study it now, or edit the cards any time.
+                          {run.deck.skipped > 0 &&
+                            run.deck.added > 0 &&
+                            ` ${run.deck.skipped} duplicate${run.deck.skipped === 1 ? '' : 's'} skipped.`}
+                        </p>
+                      </div>
+                      <Link
+                        to={`/decks/${run.deck.id}`}
+                        className="btn-primary w-full shrink-0 justify-center sm:w-auto"
+                      >
+                        View deck
+                      </Link>
+                    </div>
+                  )}
+                  {run.deckError && (
+                    <p role="alert" className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      {run.deckError}
+                    </p>
+                  )}
+
                   <ul className="mt-4 max-h-96 divide-y divide-slate-100 overflow-y-auto">
                     {run.cards.map((card, i) => (
-                      <li key={i} className="flex items-start gap-3 py-3">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(i)}
-                          onChange={() => toggle(i)}
-                          className="mt-1 h-4 w-4 rounded border-slate-300 text-forest-800 focus:ring-forest-700"
-                        />
-                        <div className="min-w-0">
-                          <p className="break-words text-sm font-medium text-slate-900">{card.question}</p>
-                          <p className="mt-0.5 break-words text-sm text-slate-600">{card.answer}</p>
-                        </div>
+                      <li key={i} className="py-3">
+                        <p className="break-words text-sm font-medium text-slate-900">{card.question}</p>
+                        <p className="mt-0.5 break-words text-sm text-slate-600">{card.answer}</p>
                       </li>
                     ))}
                   </ul>
-
-                  <form onSubmit={saveToDeck} className="mt-4 flex flex-wrap items-center gap-3">
-                    <input
-                      value={deckTitle}
-                      onChange={(e) => setDeckTitle(e.target.value)}
-                      placeholder="Deck title"
-                      className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700"
-                    />
-                    <button
-                      type="submit"
-                      disabled={saving || selected.size === 0 || !deckTitle.trim()}
-                      className="w-full rounded-md bg-forest-800 px-4 py-2 text-sm font-medium text-white hover:bg-forest-700 disabled:opacity-60 sm:w-auto"
-                    >
-                      {saving ? 'Saving…' : `Save ${selected.size} card${selected.size === 1 ? '' : 's'} to deck`}
-                    </button>
-                  </form>
                 </>
               )}
             </>
