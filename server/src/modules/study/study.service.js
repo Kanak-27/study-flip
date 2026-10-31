@@ -45,6 +45,56 @@ export async function dueCountsByDeck(userId) {
   return counts;
 }
 
+// Everything the dashboard's "Study now" button needs: the across-the-board
+// total, plus `resume` — the deck the user should be dropped back into.
+// Resume is the deck studied most recently that still has due cards, so the
+// button continues where they left off instead of queueing every overdue card
+// from every deck. Decks that were never studied rank below those, newest
+// first, which is where a brand-new user starts. Null when nothing is due.
+export async function dueSummary(userId) {
+  const counts = await dueCountsByDeck(userId);
+  const byDeck = counts.map((c) => ({ deckId: c._id.toString(), due: c.due }));
+  const dueTotal = byDeck.reduce((sum, c) => sum + c.due, 0);
+  if (dueTotal === 0) return { dueTotal, byDeck, resume: null };
+
+  const dueByDeck = new Map(byDeck.map((c) => [c.deckId, c.due]));
+  const [lastReviewed, decks] = await Promise.all([
+    // most recent review per deck
+    ReviewLog.aggregate([
+      { $match: { userId: oid(userId) } },
+      { $sort: { reviewedAt: -1 } },
+      { $group: { _id: '$deckId', lastReviewedAt: { $first: '$reviewedAt' } } },
+    ]),
+    Deck.find({ userId, deletedAt: null }).select('title').sort({ createdAt: -1 }).lean(),
+  ]);
+  const reviewedAt = new Map(lastReviewed.map((r) => [r._id.toString(), r.lastReviewedAt]));
+
+  const candidates = decks
+    .filter((d) => dueByDeck.has(d._id.toString()))
+    .map((d) => ({
+      deckId: d._id.toString(),
+      title: d.title,
+      due: dueByDeck.get(d._id.toString()),
+      lastReviewedAt: reviewedAt.get(d._id.toString()) ?? null,
+    }));
+
+  // Studied decks first (most recent review wins); unreviewed decks keep the
+  // newest-first order from the query — Array.sort is stable.
+  candidates.sort((a, b) => {
+    if (a.lastReviewedAt && b.lastReviewedAt) return b.lastReviewedAt - a.lastReviewedAt;
+    if (a.lastReviewedAt) return -1;
+    if (b.lastReviewedAt) return 1;
+    return 0;
+  });
+
+  const top = candidates[0];
+  return {
+    dueTotal,
+    byDeck,
+    resume: { deckId: top.deckId, title: top.title, due: top.due },
+  };
+}
+
 // --- sessions ---
 
 // Sessions are intentionally in-memory slices of the due queue: they hold no

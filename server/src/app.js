@@ -26,7 +26,17 @@ export function createApp({ sessionStore }) {
   const app = express();
 
   app.set('trust proxy', 1); // correct secure-cookie behavior behind a reverse proxy
-  app.use(helmet());
+  app.use(
+    helmet({
+      // The API serves avatars as plain <img> requests. In dev (Vite on its
+      // own origin) and in split deployments the page is cross-origin from
+      // the API, and helmet's default `same-origin` resource policy makes the
+      // browser refuse to render such images — the fetch behind the upload
+      // still succeeds, so the profile icon silently stayed blank. JS-readable
+      // responses remain CORS-restricted to CLIENT_ORIGIN.
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   app.use(cors({ origin: config.CLIENT_ORIGIN, credentials: true }));
 
   // Cashfree signs webhook bodies and POSTs to the browser return URL, so these

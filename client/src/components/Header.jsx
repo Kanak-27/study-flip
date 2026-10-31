@@ -32,7 +32,16 @@ export default function Header() {
     <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-canvas/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4">
         <div className="flex min-w-0 items-center gap-6 lg:gap-8">
-          <Link to="/" className="shrink-0 text-xl font-black tracking-tight text-slate-900">
+          <Link
+            to="/"
+            className="flex shrink-0 items-center gap-2 text-xl font-black tracking-tight text-slate-900"
+          >
+            <img
+              src="/studyflip_logo.png"
+              alt=""
+              aria-hidden="true"
+              className="h-8 w-8 object-contain"
+            />
             studyflip<span className="text-forest-800">.</span>
           </Link>
           <nav className="hidden gap-6 text-sm font-medium md:flex">

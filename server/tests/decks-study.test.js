@@ -318,6 +318,51 @@ describe('dashboard feed', () => {
   });
 });
 
+// The dashboard's "Study now — X due" button reopens the deck the user was
+// most recently working through, instead of queueing every overdue card.
+describe('study now (resume the deck being studied)', () => {
+  it('resumes the most recently studied deck that still has due cards', async () => {
+    const studied = await alice.post('/api/decks').send({ title: 'Resume me' });
+    const studiedId = studied.body.deck.id;
+    const reviewed = await alice.post(`/api/decks/${studiedId}/cards`).send({ question: 'q1', answer: 'a1' });
+    await alice.post(`/api/decks/${studiedId}/cards`).send({ question: 'q2', answer: 'a2' });
+
+    // a newer deck the user has never opened
+    const fresher = await alice.post('/api/decks').send({ title: 'Brand new' });
+    await alice.post(`/api/decks/${fresher.body.deck.id}/cards`).send({ question: 'q3', answer: 'a3' });
+
+    // study one card of the older deck: it leaves the queue (next due tomorrow)
+    // while its deck stays the one in progress
+    await alice.post('/api/reviews').send({ flashcardId: reviewed.body.card.id, rating: 5 });
+
+    const res = await alice.get('/api/study/due');
+    expect(res.status).toBe(200);
+    expect(res.body.dueTotal).toBeGreaterThan(0);
+    // the deck being studied wins over the newer, untouched one…
+    expect(res.body.resume).toMatchObject({ deckId: studiedId, due: 1 });
+    // …and its count is only that deck's due cards, not the cumulative total
+    expect(res.body.dueTotal).toBeGreaterThan(res.body.resume.due);
+    expect(res.body.byDeck.find((c) => c.deckId === studiedId).due).toBe(1);
+  });
+
+  it('falls back to the newest deck for a student who has never reviewed', async () => {
+    const { agent: newcomer } = await registerAgent(ctx, 109);
+    const deck = await newcomer.post('/api/decks').send({ title: 'First deck' });
+    await newcomer.post(`/api/decks/${deck.body.deck.id}/cards`).send({ question: 'q', answer: 'a' });
+
+    const res = await newcomer.get('/api/study/due');
+    expect(res.body.resume).toMatchObject({ deckId: deck.body.deck.id, due: 1 });
+  });
+
+  it('reports nothing to resume when nothing is due', async () => {
+    const { agent: quiet } = await registerAgent(ctx, 110);
+    const res = await quiet.get('/api/study/due');
+    expect(res.status).toBe(200);
+    expect(res.body.dueTotal).toBe(0);
+    expect(res.body.resume).toBeNull();
+  });
+});
+
 // The upload/decks UI shows a 30-second "Undo" section wherever something
 // was deleted; these cover the restore endpoints behind it.
 describe('undo deletion (restore)', () => {

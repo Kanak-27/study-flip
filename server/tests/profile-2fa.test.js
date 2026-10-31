@@ -66,6 +66,9 @@ describe('profile', () => {
     expect(img.status).toBe(200);
     expect(img.headers['content-type']).toMatch(/image\/png/);
     expect(img.headers['x-content-type-options']).toBe('nosniff');
+    // the SPA is served from another origin in dev/split deployments; a
+    // `same-origin` policy here made the browser drop the profile icon
+    expect(img.headers['cross-origin-resource-policy']).toBe('cross-origin');
     expect(Buffer.compare(img.body, PNG)).toBe(0);
 
     // A text file labelled image/png must be rejected on magic bytes.

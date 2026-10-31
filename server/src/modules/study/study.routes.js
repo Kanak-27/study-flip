@@ -6,7 +6,7 @@ import {
   buildSessionCards,
   recordReview,
   reviseReview,
-  dueCountsByDeck,
+  dueSummary,
 } from './study.service.js';
 import { parseBody } from '../../platform/validation.js';
 import { wrap } from '../../platform/errors.js';
@@ -26,12 +26,9 @@ studyRouter.post(
 studyRouter.get(
   '/study/due',
   wrap(async (req, res) => {
-    const counts = await dueCountsByDeck(req.userId);
-    const dueTotal = counts.reduce((sum, c) => sum + c.due, 0);
-    res.json({
-      dueTotal,
-      byDeck: counts.map((c) => ({ deckId: c._id.toString(), due: c.due })),
-    });
+    // dueTotal/byDeck as before, plus `resume`: the deck the dashboard's
+    // "Study now" button opens so the user continues their last deck.
+    res.json(await dueSummary(req.userId));
   }),
 );
 

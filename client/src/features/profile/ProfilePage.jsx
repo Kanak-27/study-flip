@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { api, apiUpload, avatarUrl } from '../../api/client.js';
+import { ShowPasswordButton, useShowPassword } from '../../components/ShowPasswordButton.jsx';
 
 // Everything the signed-in user can change about themselves. Kept on one page
 // (rather than a settings labyrinth) because each section is small and the
@@ -101,16 +102,25 @@ function Button({ children, variant = 'primary', className = '', ...rest }) {
 }
 
 function Input({ label, value, onChange, type = 'text', hint, ...rest }) {
+  // Password fields on this page (change password, 2FA off, delete account)
+  // all come through here, so one toggle covers them.
+  const reveal = useShowPassword();
+  const isPassword = type === 'password';
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        {...rest}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700"
-      />
+      <span className="relative block">
+        <input
+          type={isPassword ? reveal.type : type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          {...rest}
+          className={`w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-forest-700 focus:outline-none focus:ring-1 focus:ring-forest-700 ${
+            isPassword ? 'pr-10' : ''
+          }`}
+        />
+        {isPassword && <ShowPasswordButton shown={reveal.shown} onToggle={reveal.toggle} />}
+      </span>
       {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
     </label>
   );

@@ -17,9 +17,12 @@ export default function DashboardPage() {
     api('/api/dashboard')
       .then(setData)
       .catch((err) => setError(err.message));
+    // The whole payload: `resume` names the deck to continue (the one most
+    // recently studied that still has due cards), so the button drops the
+    // user back into that deck instead of queueing every overdue card.
     api('/api/study/due')
-      .then((d) => setDue(d.dueTotal))
-      .catch(() => setDue(0));
+      .then(setDue)
+      .catch(() => setDue({ dueTotal: 0, resume: null }));
   }, []);
 
   const stats = data?.stats;
@@ -37,10 +40,10 @@ export default function DashboardPage() {
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <Link
-            to="/study"
+            to={due?.resume ? `/study?deckId=${due.resume.deckId}` : '/study'}
             className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            {due > 0 ? `Study now — ${due} due` : 'Study (nothing due)'}
+            {due?.resume ? `Study now — ${due.resume.due} due` : 'Study (nothing due)'}
           </Link>
           <Tooltip label="Turn a PDF into flashcards with AI." side="bottom" align="right">
             <Link
